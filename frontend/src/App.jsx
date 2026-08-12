@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-// Para:
-import ProtectedRoute from './Components/ProtectedRoute';
 
-// Ajustado de acordo com a sua estrutura de pastas informada no terminal
+import ProtectedRoute from './Components/ProtectedRoute';
 import Login from './Components/pages/Login';
 import CashierPanel from './Components/pages/CashierPanel';
 import CanteenDashboard from './Components/pages/canteen';
@@ -43,7 +41,7 @@ export default function App() {
           }
         />
 
-        {/* Redirecionamento padrão caso tente acessar a raiz / ou caminho inválido */}
+        {/* Redirecionamento padrão */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
