@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import ProtectedRoute from './components/ProtectedRoute';
+// Para:
+import ProtectedRoute from './Components/ProtectedRoute';
 
 // Ajustado de acordo com a sua estrutura de pastas informada no terminal
 import Login from './Components/pages/Login';
