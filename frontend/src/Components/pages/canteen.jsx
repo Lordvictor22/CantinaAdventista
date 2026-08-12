@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../services/api';
 import logoAdventista from '../../assets/logoAdventistaCentenario.png';
-import styles from './KitchenPanel.module.css';
+import styles from './kitchenPanel.module.css';
 
 const CATEGORIES = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces', 'Opções Saudáveis'];
 
