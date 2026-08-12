@@ -1,13 +1,12 @@
 const { Pool } = require('pg');
 const path = require('path');
 
-// Carrega o arquivo .env localizado na raiz da pasta backend
 require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
-  console.error('❌ ERRO CRÍTICO: A variável DATABASE_URL não foi encontrada no .env!');
+if (!connectionString || connectionString.includes('base')) {
+  console.error('❌ ERRO CRÍTICO: DATABASE_URL ausente ou inválida nas variáveis do Render!');
 }
 
 const pool = new Pool({
