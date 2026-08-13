@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+
+
+
 // Conexão com o banco de dados para a rotina de limpeza
 const db = require('./config/db');
 

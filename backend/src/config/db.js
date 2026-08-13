@@ -5,8 +5,9 @@ require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString || connectionString.includes('base')) {
-  console.error('❌ ERRO CRÍTICO: DATABASE_URL ausente ou inválida nas variáveis do Render!');
+// Valida se a variável existe e se parece com uma URL do Postgres
+if (!connectionString || !connectionString.startsWith('postgres')) {
+  console.error('❌ ERRO CRÍTICO: DATABASE_URL ausente ou inválida nas variáveis de ambiente!');
 }
 
 const pool = new Pool({
