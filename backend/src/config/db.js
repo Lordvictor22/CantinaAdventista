@@ -15,7 +15,7 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   },
-  max: 10,
+  max: 30,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });

@@ -2,16 +2,16 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-
-
-
 // Conexão com o banco de dados para a rotina de limpeza
 const db = require('./config/db');
 
+// Importação das Rotas
+const walletRoutes = require('./routes/walletRoutes');
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const uploadRoutes = require('./routes/upload'); // Rota de upload de imagens
+const paymentRoutes = require('./routes/paymentRoutes'); // 👈 ADD: Rota do Mercado Pago (Dinheiro Real)
 
 const app = express();
 
@@ -26,6 +26,8 @@ app.use('/auth', authRoutes);
 app.use('/products', productRoutes);
 app.use('/orders', orderRoutes);
 app.use('/upload', uploadRoutes);
+app.use('/wallet', walletRoutes);
+app.use('/payments', paymentRoutes); // 👈 ADD: Registra o Mercado Pago no endpoint /payments
 
 // Rota de Health Check
 app.get('/health', (req, res) => {
