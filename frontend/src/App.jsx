@@ -5,6 +5,7 @@ import Login from './Components/pages/Login';
 import CashierPanel from './Components/pages/CashierPanel';
 import CanteenDashboard from './Components/pages/canteen';
 import StudentMenu from './Components/pages/StudentMenu';
+import ParentWallet from './Components/pages/ParentWallet';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+          <Route path="/parent-wallet" element={<ParentWallet />} />
 
         <Route
           path="/cashier"
@@ -45,5 +47,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
+    
   );
 }

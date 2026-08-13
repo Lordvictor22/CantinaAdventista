@@ -1,0 +1,101 @@
+.wallet-container {
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.wallet-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.wallet-alert {
+  padding: 12px;
+  border-radius: 8px;
+  background-color: #eef2ff;
+  font-weight: bold;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.wallet-form {
+  display: flex;
+  gap: 10px;
+}
+
+.wallet-form input, .custom-recharge input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+button {
+  padding: 10px 16px;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #1d4ed8;
+}
+
+.balance-card {
+  text-align: center;
+  background: #f8fafc;
+}
+
+.balance-display {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #16a34a;
+  margin: 15px 0;
+}
+
+.quick-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.quick-buttons button {
+  background-color: #16a34a;
+}
+
+.quick-buttons button:hover {
+  background-color: #15803d;
+}
+
+.custom-recharge {
+  display: flex;
+  gap: 10px;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+}
+
+.history-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.history-list .deposit strong {
+  color: #16a34a;
+}
+
+.history-list .purchase strong {
+  color: #dc2626;
+}

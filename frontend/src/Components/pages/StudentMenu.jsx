@@ -10,6 +10,17 @@ export default function StudentMenu() {
   const [myOrders, setMyOrders] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [studentName, setStudentName] = useState('');
+  const [studentId, setStudentId] = useState(null);
+  
+  // ESTADOS DA CARTEIRA / SALDO
+  const [balance, setBalance] = useState(0);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [amount, setAmount] = useState('');
+
+  // NOVOS ESTADOS PARA O PIX (MERCADO PAGO)
+  const [pixData, setPixData] = useState(null);
+  const [loadingPix, setLoadingPix] = useState(false);
+
   const [pickupDate, setPickupDate] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -20,7 +31,6 @@ export default function StudentMenu() {
 
   const categories = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces'];
 
-  // EFFECT UNIFICADO: Carrega dados e ativa atualização periódica a cada 30s
   useEffect(() => {
     loadProducts();
     loadStudentOrders();
@@ -29,8 +39,9 @@ export default function StudentMenu() {
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        const name = user.name || '';
-        setStudentName(name);
+        setStudentName(user.name || '');
+        setStudentId(user.id);
+        loadStudentBalance(user.id);
       } catch (err) {
         console.error('Erro ao ler usuário local:', err);
       }
@@ -39,10 +50,46 @@ export default function StudentMenu() {
     const interval = setInterval(() => {
       loadProducts();
       loadStudentOrders();
+      if (studentId) loadStudentBalance(studentId);
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [studentId]);
+
+  const loadStudentBalance = async (idToUse) => {
+    const id = idToUse || studentId;
+    if (!id) return;
+    try {
+      const res = await api.get(`/wallet/${id}`);
+      setBalance(res.data.user?.balance || 0);
+    } catch (err) {
+      console.error('Erro ao buscar saldo:', err);
+    }
+  };
+
+  // FUNÇÃO QUE GERA O PIX REAL VIA MERCADO PAGO
+  const handleGeneratePix = async (valueToAdd) => {
+    const value = valueToAdd || parseFloat(amount);
+    if (!value || value <= 0) {
+      showToast('Digite um valor válido para recarga.', 'error');
+      return;
+    }
+
+    setLoadingPix(true);
+    try {
+      const res = await api.post('/payments/create-pix', {
+        student_id: studentId,
+        amount: value
+      });
+
+      setPixData(res.data); // Guarda qr_code (texto) e qr_code_base64 (imagem)
+      showToast('QR Code PIX gerado com sucesso!');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Erro ao gerar PIX.', 'error');
+    } finally {
+      setLoadingPix(false);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -53,15 +100,12 @@ export default function StudentMenu() {
     }
   };
 
-  // BUSCA OS PEDIDOS DO ALUNO LOGADO
   const loadStudentOrders = async () => {
     setLoadingOrders(true);
     try {
       const token = localStorage.getItem('token');
       const res = await api.get('/orders/my-orders', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       setMyOrders(res.data || []);
     } catch (err) {
@@ -163,17 +207,14 @@ export default function StudentMenu() {
           }))
         },
         {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` }
         }
       );
 
       showToast('Pedido agendado com sucesso! 🎉');
       setCart([]);
-      
-      // Recarrega o histórico atualizado de imediato
       loadStudentOrders();
+      loadStudentBalance();
     } catch (err) {
       showToast(
         err.response?.data?.error || 'Erro ao processar o pedido.',
@@ -218,12 +259,29 @@ export default function StudentMenu() {
       {/* CONTEÚDO PRINCIPAL */}
       <main className="menu-container">
         <div className="main-content">
-          {/* SAUDAÇÃO */}
+          {/* SAUDAÇÃO + SALDO DA CARTEIRA */}
           <section className="welcome-section">
             <div>
               <span className="section-kicker">CANTINA ESCOLAR</span>
               <h1>Olá, {studentName || 'aluno'}! 👋</h1>
               <p>Escolha seu lanche para o próximo recreio.</p>
+            </div>
+
+            <div className="wallet-badge">
+              <div>
+                <span className="wallet-label">SEU SALDO</span>
+                <strong className="wallet-amount">{formatMoney(balance)}</strong>
+              </div>
+              <button
+                type="button"
+                className="btn-add-balance"
+                onClick={() => {
+                  setPixData(null); // Limpa o PIX anterior ao abrir
+                  setShowRechargeModal(true);
+                }}
+              >
+                ➕ Adicionar Saldo
+              </button>
             </div>
           </section>
 
@@ -288,20 +346,7 @@ export default function StudentMenu() {
                       {product.image_url && product.image_url.trim() !== '' ? (
                         <img src={product.image_url} alt={product.name} className="product-image" />
                       ) : (
-                        <div 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            height: '100%', 
-                            width: '100%', 
-                            backgroundColor: '#f8fafc', 
-                            color: '#9aa7b7', 
-                            fontSize: '13px',
-                            borderRadius: '8px',
-                            border: '1px dashed #cbd5e1'
-                          }}
-                        >
+                        <div className="no-photo-placeholder">
                           📷 Sem foto
                         </div>
                       )}
@@ -313,18 +358,10 @@ export default function StudentMenu() {
                         <p className="product-description">{product.description}</p>
                       )}
                       
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                      <div className="product-price-row">
                         <span className="product-price">{formatMoney(product.price)}</span>
                         
-                        {/* TAG DE ESTOQUE */}
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          backgroundColor: isOutOfStock ? '#fee2e2' : '#dcfce7',
-                          color: isOutOfStock ? '#dc2626' : '#15803d'
-                        }}>
+                        <span className={`stock-badge ${isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
                           {isOutOfStock ? 'Esgotado' : `Estoque: ${product.stock ?? 0}`}
                         </span>
                       </div>
@@ -340,7 +377,6 @@ export default function StudentMenu() {
                             className="qty-btn" 
                             onClick={() => updateQuantity(product.id, 1)}
                             disabled={isMaxReached}
-                            style={{ opacity: isMaxReached ? 0.4 : 1, cursor: isMaxReached ? 'not-allowed' : 'pointer' }}
                           >
                             +
                           </button>
@@ -351,11 +387,6 @@ export default function StudentMenu() {
                           className="btn-add" 
                           onClick={() => addToCart(product)}
                           disabled={isOutOfStock}
-                          style={{
-                            opacity: isOutOfStock ? 0.5 : 1,
-                            cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                            backgroundColor: isOutOfStock ? '#94a3b8' : undefined
-                          }}
                         >
                           {isOutOfStock ? 'Esgotado' : '+ Adicionar'}
                         </button>
@@ -368,10 +399,10 @@ export default function StudentMenu() {
           </section>
         </div>
 
-        {/* COLUNA LATERAL: CARRINHO + HISTÓRICO DE PEDIDOS */}
+        {/* COLUNA LATERAL */}
         <aside id="pedido" className="sidebar">
           
-          {/* CARD 1: NOVO PEDIDO (CARRINHO) */}
+          {/* NOVO PEDIDO */}
           <div className="cart-card">
             <div className="cart-header">
               <h2>Novo Pedido</h2>
@@ -408,8 +439,8 @@ export default function StudentMenu() {
             )}
           </div>
 
-          {/* CARD 2: HISTÓRICO DE PEDIDOS CONFIRMADOS */}
-          <div className="history-card" style={{ marginTop: '1.5rem' }}>
+          {/* HISTÓRICO DE PEDIDOS */}
+          <div className="history-card">
             <div className="cart-header">
               <h2>Meus Pedidos Realizados</h2>
             </div>
@@ -448,6 +479,97 @@ export default function StudentMenu() {
 
         </aside>
       </main>
+
+      {/* MODAL DE RECARGA REAL VIA PIX */}
+      {showRechargeModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3 className="modal-title">📱 Recarga via PIX</h3>
+
+            {!pixData ? (
+              <>
+                <p className="modal-subtitle">
+                  Escolha um valor para recarregar a conta de <strong>{studentName || 'Aluno'}</strong>:
+                </p>
+
+                <div className="modal-quick-actions">
+                  {[20, 50, 100].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      className="btn-quick-value"
+                      onClick={() => handleGeneratePix(val)}
+                      disabled={loadingPix}
+                    >
+                      + R$ {val}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="modal-custom-input-group">
+                  <input
+                    type="number"
+                    placeholder="Outro valor (R$)"
+                    className="modal-input-amount"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-confirm-recharge"
+                    onClick={() => handleGeneratePix()}
+                    disabled={loadingPix}
+                  >
+                    {loadingPix ? 'Gerando...' : 'Gerar PIX'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* SE O PIX JÁ FOI GERADO */
+              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <p style={{ fontWeight: '600', marginBottom: '10px', color: '#1e293b' }}>
+                  Escaneie o QR Code abaixo no app do seu banco:
+                </p>
+                
+                <img
+                  src={`data:image/png;base64,${pixData.qr_code_base64}`}
+                  alt="QR Code PIX"
+                  style={{ width: '180px', height: '180px', margin: '0 auto', display: 'block', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                />
+
+                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '12px', marginBottom: '8px' }}>
+                  Ou copie a chave abaixo:
+                </p>
+
+                <button
+                  type="button"
+                  className="btn-confirm-recharge"
+                  style={{ width: '100%', padding: '12px', backgroundColor: '#10b981' }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(pixData.qr_code);
+                    showToast('Código PIX Copia e Cola copiado!');
+                  }}
+                >
+                  📋 Copiar PIX Copia e Cola
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-close-modal"
+              style={{ marginTop: '15px' }}
+              onClick={() => {
+                setShowRechargeModal(false);
+                setPixData(null);
+                setAmount('');
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

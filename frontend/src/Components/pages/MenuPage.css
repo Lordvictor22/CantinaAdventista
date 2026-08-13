@@ -1460,3 +1460,185 @@ body {
   color: #065f46;
   border: 1px solid #a7f3d0;
 }
+
+
+/* ==========================================
+   CARTEIRA / SALDO DO ALUNO
+   ========================================== */
+.welcome-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.wallet-badge {
+  background-color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.wallet-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: bold;
+  display: block;
+  text-transform: uppercase;
+}
+
+.wallet-amount {
+  font-size: 1.4rem;
+  color: #16a34a;
+}
+
+.btn-add-balance {
+  background-color: #16a34a;
+  color: #ffffff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-add-balance:hover {
+  background-color: #15803d;
+}
+
+/* Fallback de Foto do Produto */
+.no-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background-color: #f8fafc;
+  color: #9aa7b7;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+}
+
+/* Badge de Estoque */
+.stock-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.stock-badge.in-stock {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.stock-badge.out-of-stock {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+/* ==========================================
+   MODAL DE RECARGA (ÁREA DOS PAIS)
+   ========================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.modal-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.modal-title {
+  margin: 0 0 8px 0;
+  font-size: 1.25rem;
+  color: #1e293b;
+}
+
+.modal-subtitle {
+  margin: 0 0 20px 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.modal-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.btn-quick-value {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-quick-value:hover {
+  background-color: #e2e8f0;
+}
+
+.modal-custom-input-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.modal-input-amount {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+}
+
+.btn-confirm-recharge {
+  background-color: #16a34a;
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-confirm-recharge:hover {
+  background-color: #15803d;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
