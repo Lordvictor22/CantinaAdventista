@@ -18,14 +18,22 @@ router.post(
 router.put(
   '/:id',
   verifyToken,
-  verifyRole('canteen', 'admin','cashier'),
+  verifyRole('canteen', 'admin', 'cashier'),
   productController.updateProduct
+);
+
+// 🟢 ROTA NOVA: Alternar / Desativar status do produto
+router.patch(
+  '/:id/status',
+  verifyToken,
+  verifyRole('canteen', 'admin', 'cashier'),
+  productController.toggleProductStatus
 );
 
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole('canteen', 'admin','cashier'),
+  verifyRole('canteen', 'admin', 'cashier'),
   productController.deleteProduct
 );
 

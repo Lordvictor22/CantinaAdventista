@@ -85,3 +85,128 @@ exports.getWalletInfo = async (req, res) => {
     res.status(500).json({ error: 'Erro ao buscar extrato: ' + error.message });
   }
 };
+
+
+// 1. Buscar os filhos vinculados ao pai logado (req.user.id vem do middleware JWT)
+exports.getParentStudents = async (req, res) => {
+  const parentId = req.user.id;
+
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.name, u.email, u.balance, u.daily_limit
+       FROM parent_students ps
+       JOIN users u ON ps.student_id = u.id
+       WHERE ps.parent_id = $1`,
+      [parentId]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar filhos:', error);
+    return res.status(500).json({ error: 'Erro ao buscar lista de alunos vinculados.' });
+  }
+};
+
+// 2. Buscar resumo completo do filho (incluindo lista de produtos bloqueados e extrato)
+exports.getStudentSummary = async (req, res) => {
+  const { studentId } = req.params;
+
+  try {
+    // Dados do aluno
+    const studentRes = await db.query(
+      'SELECT id, name, email, balance, daily_limit FROM users WHERE id = $1',
+      [studentId]
+    );
+
+    if (studentRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Aluno não encontrado.' });
+    }
+
+    // IDs dos produtos bloqueados para este aluno
+    const blockedRes = await db.query(
+      'SELECT product_id FROM blocked_products WHERE student_id = $1',
+      [studentId]
+    );
+    const blockedProductIds = blockedRes.rows.map(row => Number(row.product_id));
+
+    // Histórico de pedidos do aluno
+    const ordersRes = await db.query(
+      `SELECT id, total, status, pickup_date, pickup_time, created_at 
+       FROM orders 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [studentId]
+    );
+
+    return res.json({
+      student: studentRes.rows[0],
+      blockedProductIds,
+      recentOrders: ordersRes.rows
+    });
+  } catch (error) {
+    console.error('Erro ao carregar resumo do aluno:', error);
+    return res.status(500).json({ error: 'Erro ao carregar resumo do aluno.' });
+  }
+};
+
+// 3. Atualizar o limite diário do filho
+exports.setDailyLimit = async (req, res) => {
+  const { studentId } = req.params;
+  const { daily_limit } = req.body; // Pode passar um valor numérico ou null para remover o limite
+
+  try {
+    const result = await db.query(
+      `UPDATE users 
+       SET daily_limit = $1 
+       WHERE id = $2 
+       RETURNING id, name, daily_limit`,
+      [daily_limit !== undefined && daily_limit !== '' ? daily_limit : null, studentId]
+    );
+
+    return res.json({
+      message: 'Limite diário atualizado com sucesso!',
+      student: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Erro ao definir limite diário:', error);
+    return res.status(500).json({ error: 'Erro ao definir limite diário.' });
+  }
+};
+
+// 4. Bloquear ou Desbloquear um produto específico para o filho
+exports.toggleProductBlock = async (req, res) => {
+  const { studentId } = req.params;
+  const { productId } = req.body;
+
+  if (!productId) {
+    return res.status(400).json({ error: 'ID do produto é obrigatório.' });
+  }
+
+  try {
+    // Verifica se já está bloqueado
+    const checkRes = await db.query(
+      'SELECT * FROM blocked_products WHERE student_id = $1 AND product_id = $2',
+      [studentId, productId]
+    );
+
+    if (checkRes.rows.length > 0) {
+      // Já está bloqueado -> DESBLOQUEIA
+      await db.query(
+        'DELETE FROM blocked_products WHERE student_id = $1 AND product_id = $2',
+        [studentId, productId]
+      );
+      return res.json({ message: 'Produto desbloqueado para o aluno.', isBlocked: false });
+    } else {
+      // Não está bloqueado -> BLOQUEIA
+      await db.query(
+        'INSERT INTO blocked_products (student_id, product_id) VALUES ($1, $2)',
+        [studentId, productId]
+      );
+      return res.json({ message: 'Produto bloqueado para o aluno com sucesso!', isBlocked: true });
+    }
+  } catch (error) {
+    console.error('Erro ao alternar bloqueio do produto:', error);
+    return res.status(500).json({ error: 'Erro ao atualizar restrição de produto.' });
+  }
+};

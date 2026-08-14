@@ -355,3 +355,21 @@
   object-fit: contain !important; /* Mantém a proporção sem estourar o card */
   display: block;
 }
+
+.btn-admin-access {
+  background-color: #1e293b;
+  color: #ffffff;
+  border: 1px solid #334155;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-admin-access:hover {
+  background-color: #0f172a;
+}

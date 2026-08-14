@@ -26,7 +26,6 @@ export default function Login() {
       ? '/auth/register'
       : '/auth/login';
 
-    // O payload agora envia apenas os dados básicos no cadastro
     const payload = isRegister
       ? { name, email, password }
       : { email, password };
@@ -44,14 +43,19 @@ export default function Login() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
 
-        if (data.user.role === 'cashier') {
+        // Redirecionamento correto baseado na role do usuário
+        const role = data.user.role;
+
+        if (role === 'cashier') {
           navigate('/cashier');
-        } else if (data.user.role === 'canteen') {
+        } else if (role === 'canteen') {
           navigate('/canteen');
-        } else if (data.user.role === 'admin') {
-          navigate('/menu-admin');
+        } else if (role === 'parent') {
+          navigate('/parent-wallet'); // Redireciona o pai para a carteira do filho
+        } else if (role === 'admin') {
+          navigate('/canteen'); // Admin redirecionado para a visão da cantina
         } else {
-          navigate('/student');
+          navigate('/student'); // Padrão para alunos
         }
       }
     } catch (err) {
@@ -72,7 +76,6 @@ export default function Login() {
 
   return (
     <main className="login-page">
-
       <div className="login-card">
 
         {/* Logo institucional */}
@@ -112,7 +115,6 @@ export default function Login() {
 
         {/* Abas */}
         <div className="auth-tabs">
-
           <button
             type="button"
             className={!isRegister ? 'active' : ''}
@@ -128,7 +130,6 @@ export default function Login() {
           >
             Criar conta
           </button>
-
         </div>
 
         {/* Mensagens */}
@@ -149,7 +150,6 @@ export default function Login() {
           className="login-form"
           onSubmit={handleSubmit}
         >
-
           {isRegister && (
             <div className="form-group">
               <label htmlFor="name">
@@ -208,7 +208,6 @@ export default function Login() {
                 ? 'Criar conta'
                 : 'Entrar'}
           </button>
-
         </form>
 
         <div className="login-footer">
@@ -220,7 +219,6 @@ export default function Login() {
         </div>
 
       </div>
-
     </main>
   );
 }

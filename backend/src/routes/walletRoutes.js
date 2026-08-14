@@ -1,8 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const walletController = require('../controllers/walletController');
+const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 
-// GET /wallet/:id  -> Busca saldo do aluno
+// ==========================================
+// ROTAS EXISTENTES DE SALDO
+// ==========================================
+
+// GET /wallet/:id -> Busca saldo do aluno
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -34,5 +40,37 @@ router.post('/add-balance', async (req, res) => {
     return res.status(500).json({ error: 'Erro interno ao atualizar saldo' });
   }
 });
+
+// ==========================================
+// ROTAS DO PAINEL DOS PAIS
+// ==========================================
+
+router.get(
+  '/parent/students', 
+  verifyToken, 
+  verifyRole('parent', 'admin'), 
+  walletController.getParentStudents
+);
+
+router.get(
+  '/parent/student/:studentId/summary', 
+  verifyToken, 
+  verifyRole('parent', 'admin'), 
+  walletController.getStudentSummary
+);
+
+router.put(
+  '/parent/student/:studentId/daily-limit', 
+  verifyToken, 
+  verifyRole('parent', 'admin'), 
+  walletController.setDailyLimit
+);
+
+router.post(
+  '/parent/student/:studentId/toggle-block', 
+  verifyToken, 
+  verifyRole('parent', 'admin'), 
+  walletController.toggleProductBlock
+);
 
 module.exports = router;

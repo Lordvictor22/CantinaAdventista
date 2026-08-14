@@ -4,6 +4,9 @@ import logoAdventista from '../../assets/logoAdventistaCentenario.png';
 import logoGostosoSabor from '../../assets/GostososaborlogoreduzidoGIMP.png';
 import './MenuPage.css';
 
+// 💡 CONFIGURE A CHAVE PIX DA CANTINA AQUI
+const PIX_KEY = "suachavepix@email.com"; 
+
 export default function StudentMenu() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -15,11 +18,6 @@ export default function StudentMenu() {
   // ESTADOS DA CARTEIRA / SALDO
   const [balance, setBalance] = useState(0);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [amount, setAmount] = useState('');
-
-  // NOVOS ESTADOS PARA O PIX (MERCADO PAGO)
-  const [pixData, setPixData] = useState(null);
-  const [loadingPix, setLoadingPix] = useState(false);
 
   const [pickupDate, setPickupDate] = useState(
     new Date().toISOString().split('T')[0]
@@ -64,30 +62,6 @@ export default function StudentMenu() {
       setBalance(res.data.user?.balance || 0);
     } catch (err) {
       console.error('Erro ao buscar saldo:', err);
-    }
-  };
-
-  // FUNÇÃO QUE GERA O PIX REAL VIA MERCADO PAGO
-  const handleGeneratePix = async (valueToAdd) => {
-    const value = valueToAdd || parseFloat(amount);
-    if (!value || value <= 0) {
-      showToast('Digite um valor válido para recarga.', 'error');
-      return;
-    }
-
-    setLoadingPix(true);
-    try {
-      const res = await api.post('/payments/create-pix', {
-        student_id: studentId,
-        amount: value
-      });
-
-      setPixData(res.data); // Guarda qr_code (texto) e qr_code_base64 (imagem)
-      showToast('QR Code PIX gerado com sucesso!');
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Erro ao gerar PIX.', 'error');
-    } finally {
-      setLoadingPix(false);
     }
   };
 
@@ -167,7 +141,7 @@ export default function StudentMenu() {
   const cartQuantity = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const formatMoney = (value) => {
-    return Number(value).toLocaleString('pt-BR', {
+    return Number(value || 0).toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     });
@@ -214,7 +188,7 @@ export default function StudentMenu() {
       showToast('Pedido agendado com sucesso! 🎉');
       setCart([]);
       loadStudentOrders();
-      loadStudentBalance();
+      loadStudentBalance(studentId);
     } catch (err) {
       showToast(
         err.response?.data?.error || 'Erro ao processar o pedido.',
@@ -223,6 +197,11 @@ export default function StudentMenu() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopyPixKey = () => {
+    navigator.clipboard.writeText(PIX_KEY);
+    showToast('Chave PIX copiada para a área de transferência!');
   };
 
   return (
@@ -275,10 +254,7 @@ export default function StudentMenu() {
               <button
                 type="button"
                 className="btn-add-balance"
-                onClick={() => {
-                  setPixData(null); // Limpa o PIX anterior ao abrir
-                  setShowRechargeModal(true);
-                }}
+                onClick={() => setShowRechargeModal(true)}
               >
                 ➕ Adicionar Saldo
               </button>
@@ -464,13 +440,23 @@ export default function StudentMenu() {
                       Retirada: {order.pickup_date} às {order.pickup_time}
                     </p>
 
+                    {/* LISTA DE PRODUTOS COM PREÇO UN/TOTAL */}
                     <ul className="history-products">
                       {order.items?.map((item, idx) => (
-                        <li key={idx}>
-                          {item.quantity}x {item.name || `Produto #${item.product_id}`}
+                        <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span>{item.quantity}x {item.name || item.product_name || `Produto #${item.product_id}`}</span>
+                          <span>{formatMoney(item.price || item.unit_price || 0)}</span>
                         </li>
                       ))}
                     </ul>
+
+                    <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px dashed #eee' }} />
+
+                    {/* VALOR TOTAL DO PEDIDO */}
+                    <div className="history-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                      <span>Total:</span>
+                      <span>{formatMoney(order.total_amount || order.total || order.items?.reduce((acc, i) => acc + ((i.price || i.unit_price || 0) * i.quantity), 0))}</span>
+                    </div>
                   </div>
                 ))}
               </div>  
@@ -480,93 +466,63 @@ export default function StudentMenu() {
         </aside>
       </main>
 
-      {/* MODAL DE RECARGA REAL VIA PIX */}
+      {/* MODAL DE RECARGA DIRETA VIA PIX (SEM TAXAS) */}
       {showRechargeModal && (
         <div className="modal-overlay">
           <div className="modal-card">
+            
+            {/* Botão X para fechar o Modal */}
+            <button 
+              type="button"
+              className="modal-close-icon"
+              onClick={() => setShowRechargeModal(false)}
+            >
+              ✕
+            </button>
+
             <h3 className="modal-title">📱 Recarga via PIX</h3>
 
-            {!pixData ? (
-              <>
-                <p className="modal-subtitle">
-                  Escolha um valor para recarregar a conta de <strong>{studentName || 'Aluno'}</strong>:
-                </p>
+            <div className="pix-container">
+              <p className="pix-title">
+                Transfira para a Chave PIX da Cantina:
+              </p>
 
-                <div className="modal-quick-actions">
-                  {[20, 50, 100].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      className="btn-quick-value"
-                      onClick={() => handleGeneratePix(val)}
-                      disabled={loadingPix}
-                    >
-                      + R$ {val}
-                    </button>
-                  ))}
-                </div>
+              <p className="pix-subtitle">
+                Copie a chave abaixo para usar no app do seu banco:
+              </p>
 
-                <div className="modal-custom-input-group">
-                  <input
-                    type="number"
-                    placeholder="Outro valor (R$)"
-                    className="modal-input-amount"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="btn-confirm-recharge"
-                    onClick={() => handleGeneratePix()}
-                    disabled={loadingPix}
-                  >
-                    {loadingPix ? 'Gerando...' : 'Gerar PIX'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* SE O PIX JÁ FOI GERADO */
-              <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <p style={{ fontWeight: '600', marginBottom: '10px', color: '#1e293b' }}>
-                  Escaneie o QR Code abaixo no app do seu banco:
-                </p>
-                
-                <img
-                  src={`data:image/png;base64,${pixData.qr_code_base64}`}
-                  alt="QR Code PIX"
-                  style={{ width: '180px', height: '180px', margin: '0 auto', display: 'block', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                />
+              {/* Campo de leitura da chave PIX */}
+              <input
+                type="text"
+                readOnly
+                value={PIX_KEY}
+                className="pix-input-key"
+              />
 
-                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '12px', marginBottom: '8px' }}>
-                  Ou copie a chave abaixo:
-                </p>
+              {/* Botão para copiar a chave */}
+              <button
+                type="button"
+                className="pix-copy-button"
+                onClick={handleCopyPixKey}
+              >
+                📋 Copiar Chave PIX
+              </button>
 
-                <button
-                  type="button"
-                  className="btn-confirm-recharge"
-                  style={{ width: '100%', padding: '12px', backgroundColor: '#10b981' }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(pixData.qr_code);
-                    showToast('Código PIX Copia e Cola copiado!');
-                  }}
-                >
-                  📋 Copiar PIX Copia e Cola
-                </button>
+              {/* Caixa explicativa sobre o comprovante */}
+              <div className="pix-info-box">
+                💡 <strong>Instrução:</strong> Faça o PIX do valor desejado no banco e apresente o comprovante na cantina para a atualização do seu saldo.
               </div>
-            )}
 
-            <button
-              type="button"
-              className="btn-close-modal"
-              style={{ marginTop: '15px' }}
-              onClick={() => {
-                setShowRechargeModal(false);
-                setPixData(null);
-                setAmount('');
-              }}
-            >
-              Fechar
-            </button>
+              {/* Botão de Fechar */}
+              <button
+                type="button"
+                className="btn-close-modal"
+                onClick={() => setShowRechargeModal(false)}
+              >
+                Fechar
+              </button>
+            </div>
+
           </div>
         </div>
       )}

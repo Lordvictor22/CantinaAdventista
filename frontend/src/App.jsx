@@ -23,7 +23,15 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-          <Route path="/parent-wallet" element={<ParentWallet />} />
+
+        <Route
+          path="/parent-wallet"
+          element={
+            <ProtectedRoute allowedRoles={['parent', 'admin']}>
+              <ParentWallet />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/cashier"
@@ -43,10 +51,19 @@ export default function App() {
           }
         />
 
+        {/* Rota Admin utilizando o painel CanteenDashboard existente */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'canteen']}>
+              <CanteenDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Redirecionamento padrão */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
-    
   );
 }

@@ -99,6 +99,42 @@ const updateProduct = async (req, res) => {
   }
 };
 
+// 🟢 NOVA FUNÇÃO: Inverte ou define o status de disponibilidade (available)
+const toggleProductStatus = async (req, res) => {
+  const { id } = req.params;
+  const { available } = req.body; // Aceita 'available' no body se quiser forçar true/false
+
+  try {
+    let result;
+
+    if (available !== undefined) {
+      // Se passou o valor booleano explicitamente no body
+      result = await db.query(
+        'UPDATE products SET available = $1 WHERE id = $2 RETURNING *',
+        [available, id]
+      );
+    } else {
+      // Se não passou nada no body, simplesmente inverte o valor atual (NOT available)
+      result = await db.query(
+        'UPDATE products SET available = NOT available WHERE id = $1 RETURNING *',
+        [id]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
+
+    return res.json({
+      message: `Produto ${result.rows[0].available ? 'ativado' : 'desativado'} com sucesso!`,
+      product: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Erro ao alterar status do produto:', error);
+    return res.status(500).json({ error: 'Erro ao alterar status do produto.' });
+  }
+};
+
 const deleteProduct = async (req, res) => {
   const { id } = req.params;
 
@@ -121,4 +157,10 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct };
+module.exports = { 
+  getProducts, 
+  createProduct, 
+  updateProduct, 
+  toggleProductStatus, 
+  deleteProduct 
+};

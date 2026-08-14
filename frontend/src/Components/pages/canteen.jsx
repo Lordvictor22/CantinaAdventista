@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import logoAdventista from '../../assets/logoAdventistaCentenario.png';
 import styles from './kitchenPanel.module.css';
@@ -16,6 +17,11 @@ const INITIAL_FORM_STATE = {
 };
 
 export default function CanteenDashboard() {
+  const navigate = useNavigate();
+  
+  // Obtém o usuário logado para validar perfil (Admin / Cantina)
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   const [activeSection, setActiveSection] = useState('preparo');
   
   // Orders State
@@ -230,12 +236,24 @@ export default function CanteenDashboard() {
           >
             👨‍🍳 Preparo
           </button>
+
           <button
             className={`${styles.canteenNavBtn} ${activeSection === 'produtos' ? styles.active : ''}`}
             onClick={() => setActiveSection('produtos')}
           >
             🍔 Produtos
           </button>
+
+          {/* Botão de navegação direta para o Painel de Administração */}
+          {(user.role === 'admin' || user.role === 'canteen') && (
+            <button
+              className={styles.canteenNavBtn}
+              onClick={() => navigate('/admin')}
+              style={{ backgroundColor: '#1e293b', color: '#fff', marginLeft: '10px' }}
+            >
+              ⚙️ Admin
+            </button>
+          )}
         </div>
       </header>
 

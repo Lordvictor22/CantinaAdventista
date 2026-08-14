@@ -1545,100 +1545,226 @@ body {
   color: #dc2626;
 }
 
-/* ==========================================
-   MODAL DE RECARGA (ÁREA DOS PAIS)
-   ========================================== */
+/* ===================================
+   MODAL DE RECARGA PIX (CSS SEPARADO)
+   =================================== */
+
+.modal-card {
+  position: relative;
+  max-width: 420px;
+  width: 90%;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.modal-close-icon {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  color: #64748b;
+  transition: color 0.2s ease;
+}
+
+.modal-close-icon:hover {
+  color: #0f172a;
+}
+
+.pix-container {
+  text-align: center;
+  padding-top: 10px;
+}
+
+.pix-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.pix-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.pix-input-key {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  color: #1e293b;
+  margin-bottom: 12px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.pix-copy-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #10b981;
+  color: #ffffff;
+  font-weight: bold;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.pix-copy-button:hover {
+  background-color: #059669;
+}
+
+.pix-info-box {
+  margin-top: 15px;
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1e40af;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.btn-close-modal {
+  margin-top: 15px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+  transition: background-color 0.2s ease;
+}
+
+.btn-close-modal:hover {
+  background-color: #f1f5f9;
+}
+
+/* ESTILOS DO MODAL DE RECARGA PIX */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(15, 23, 42, 0.65);
+  background-color: rgba(0, 0, 0, 0.65); /* Fundo escuro */
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  padding: 20px;
+  z-index: 99999; /* Garante que fique acima de tudo */
+  backdrop-filter: blur(3px);
 }
 
 .modal-card {
-  background-color: #ffffff;
-  border-radius: 16px;
+  background: #ffffff;
   padding: 24px;
-  max-width: 420px;
-  width: 100%;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  text-align: center;
+  border-radius: 16px;
+  max-width: 440px;
+  width: 90%;
+  position: relative;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  z-index: 100000;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-close-icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
 }
 
 .modal-title {
-  margin: 0 0 8px 0;
+  margin-top: 0;
+  margin-bottom: 16px;
   font-size: 1.25rem;
   color: #1e293b;
 }
 
-.modal-subtitle {
-  margin: 0 0 20px 0;
-  font-size: 14px;
-  color: #64748b;
-}
-
-.modal-quick-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.btn-quick-value {
-  background-color: #f1f5f9;
-  color: #0f172a;
-  border: 1px solid #cbd5e1;
-  padding: 10px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-quick-value:hover {
-  background-color: #e2e8f0;
-}
-
-.modal-custom-input-group {
+.pix-container {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.modal-input-amount {
-  flex: 1;
+.pix-title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.pix-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.pix-input-key {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.pix-copy-button {
+  background: #2563eb;
+  color: white;
+  border: none;
   padding: 10px;
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 14px;
-}
-
-.btn-confirm-recharge {
-  background-color: #16a34a;
-  color: #ffffff;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.btn-confirm-recharge:hover {
-  background-color: #15803d;
+.pix-info-box {
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #334155;
+  line-height: 1.4;
 }
 
 .btn-close-modal {
-  background: none;
+  background: #e2e8f0;
   border: none;
-  color: #64748b;
-  font-size: 13px;
+  padding: 10px;
+  border-radius: 8px;
   cursor: pointer;
-  text-decoration: underline;
+  font-weight: 600;
+  color: #475569;
+  margin-top: 8px;
 }
