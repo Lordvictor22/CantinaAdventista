@@ -1,8 +1,14 @@
 const db = require('../config/db');
 
-// Criar pedido (Aluno) - expires_at inicia como NULL
+// Criar pedido (Aluno)
 const createOrder = async (req, res) => {
   const { student_name, pickup_date, pickup_time, items } = req.body;
+  // Extrai o ID do usuário do token JWT autenticado no middleware
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Usuário não autenticado.' });
+  }
 
   if (!student_name || !pickup_date || !pickup_time || !items || items.length === 0) {
     return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
@@ -27,12 +33,12 @@ const createOrder = async (req, res) => {
       total += itemPrice * item.quantity;
     });
 
-    // 2. Salva o pedido com status 'pendente' e expires_at NULL (contagem não iniciada)
+    // 2. Salva o pedido vinculando ao user_id, status 'pendente' e expires_at NULL
     const orderResult = await db.query(
-      `INSERT INTO orders (student_name, pickup_date, pickup_time, status, total, expires_at)
-       VALUES ($1, $2::date, $3, 'pendente', $4, NULL)
+      `INSERT INTO orders (user_id, student_name, pickup_date, pickup_time, status, total, expires_at)
+       VALUES ($1, $2, $3::date, $4, 'pendente', $5, NULL)
        RETURNING id`,
-      [student_name, pickup_date, pickup_time, total]
+      [userId, student_name, pickup_date, pickup_time, total]
     );
 
     const orderId = orderResult.rows[0].id;
@@ -57,7 +63,7 @@ const createOrder = async (req, res) => {
   }
 };
 
-// Buscar pedidos para a cantina/caixa
+// Buscar pedidos para a cantina/caixa (Geral por data)
 const getOrders = async (req, res) => {
   try {
     const targetDate = req.query.date || new Date().toISOString().split('T')[0];
@@ -65,6 +71,7 @@ const getOrders = async (req, res) => {
     const queryText = `
       SELECT 
         o.id, 
+        o.user_id,
         o.student_name, 
         TO_CHAR(o.pickup_date, 'YYYY-MM-DD') AS pickup_date, 
         o.pickup_time, 
@@ -95,7 +102,7 @@ const getOrders = async (req, res) => {
   }
 };
 
-// Atualizar status do pedido (Gera a baixa no estoque e calcula a expiração de 15 min ao ficar "pronto")
+// Atualizar status do pedido (Gera a baixa no estoque e calcula a expiração ao ficar "pronto")
 const updateOrderStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -127,9 +134,9 @@ const updateOrderStatus = async (req, res) => {
       }
     }
 
-    // 2. Lógica para definir expires_at exatamente no momento em que fica PRONTO
+    // 2. Lógica para definir expires_at no momento em que fica PRONTO
     if (status === 'pronto') {
-      const expirationDate = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos a partir de AGORA
+      const expirationDate = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos a partir de agora
       await db.query(
         'UPDATE orders SET status = $1, expires_at = $2 WHERE id = $3',
         [status, expirationDate, id]
@@ -155,12 +162,17 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Buscar histórico de pedidos do aluno logado
+// Buscar histórico de pedidos do ALUNO LOGADO
 const getUserOrders = async (req, res) => {
   try {
-    const studentName = req.query.student_name;
+    // Pega o ID do usuário diretamente do middleware JWT
+    const userId = req.user?.id;
 
-    let queryText = `
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuário não autenticado.' });
+    }
+
+    const queryText = `
       SELECT 
         o.id, 
         o.student_name, 
@@ -179,21 +191,12 @@ const getUserOrders = async (req, res) => {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
-    `;
-
-    const queryParams = [];
-
-    if (studentName) {
-      queryText += ` WHERE o.student_name = $1`;
-      queryParams.push(studentName);
-    }
-
-    queryText += `
+      WHERE o.user_id = $1
       GROUP BY o.id
       ORDER BY o.id DESC;
     `;
 
-    const result = await db.query(queryText, queryParams);
+    const result = await db.query(queryText, [userId]);
     return res.json(result.rows);
   } catch (error) {
     console.error('ERRO AO BUSCAR HISTÓRICO DO ALUNO:', error.message);
