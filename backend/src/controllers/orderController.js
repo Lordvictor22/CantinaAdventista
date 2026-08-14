@@ -162,10 +162,8 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Buscar SOMENTE os pedidos do aluno que está logado
 const getUserOrders = async (req, res) => {
   try {
-    // ID vem diretamente do token do usuário logado
     const userId = req.user.id;
 
     if (!userId) {
@@ -194,9 +192,7 @@ const getUserOrders = async (req, res) => {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
-
       WHERE o.user_id = $1
-
       GROUP BY 
         o.id,
         o.user_id,
@@ -205,7 +201,6 @@ const getUserOrders = async (req, res) => {
         o.pickup_time,
         o.status,
         o.total
-
       ORDER BY o.id DESC;
     `;
 
@@ -220,6 +215,5 @@ const getUserOrders = async (req, res) => {
       error: 'Erro ao carregar seus pedidos.'
     });
   }
-};  
-
+};
 module.exports = { createOrder, getOrders, updateOrderStatus, getUserOrders };
