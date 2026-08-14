@@ -10,8 +10,8 @@ const getBlockedProducts = async (req, res) => {
       [studentId]
     );
 
-    // Retorna um array simples de IDs: [1, 5, 8]
-    const blockedIds = result.rows.map(row => row.product_id);
+    // Retorna os IDs convertidos para Número
+    const blockedIds = result.rows.map(row => Number(row.product_id));
     return res.json(blockedIds);
   } catch (error) {
     console.error('Erro ao buscar produtos bloqueados:', error);

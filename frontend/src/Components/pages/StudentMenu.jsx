@@ -44,15 +44,19 @@ export default function StudentMenu() {
 
   const categories = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces'];
 
+  // 1. CARREGAMENTO INICIAL DO USUÁRIO E DADOS RELACIONADOS
   useEffect(() => {
+    let currentId = null;
     const savedUser = localStorage.getItem('user');
+
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setStudentName(user.name || '');
         setStudentEmail(user.email || '');
         setStudentId(user.id);
-        
+        currentId = user.id;
+
         const savedAvatar = localStorage.getItem(`userAvatar_${user.id}`);
         if (savedAvatar) {
           setAvatarUrl(savedAvatar);
@@ -70,6 +74,7 @@ export default function StudentMenu() {
     loadProducts();
     loadStudentOrders();
 
+    // Listener para fechar o menu dropdown de usuário ao clicar fora
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
@@ -77,12 +82,13 @@ export default function StudentMenu() {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
+    // Polling automático a cada 30s
     const interval = setInterval(() => {
       loadProducts();
       loadStudentOrders();
-      if (studentId) {
-        loadStudentBalance(studentId);
-        loadBlockedProducts(studentId);
+      if (currentId) {
+        loadStudentBalance(currentId);
+        loadBlockedProducts(currentId);
       }
     }, 30000);
 
@@ -90,7 +96,7 @@ export default function StudentMenu() {
       document.removeEventListener('mousedown', handleClickOutside);
       clearInterval(interval);
     };
-  }, [studentId]);
+  }, []);
 
   const loadStudentBalance = async (idToUse) => {
     const id = idToUse || studentId;
@@ -104,11 +110,24 @@ export default function StudentMenu() {
   };
 
   const loadBlockedProducts = async (idToUse) => {
-    const id = idToUse || studentId;
+    let id = idToUse || studentId;
+    if (!id) {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          id = u.id;
+        } catch (e) {}
+      }
+    }
+
     if (!id) return;
+
     try {
       const res = await api.get(`/parent/blocked/${id}`);
-      setBlockedProductIds(res.data || []);
+      if (Array.isArray(res.data)) {
+        setBlockedProductIds(res.data);
+      }
     } catch (err) {
       console.error('Erro ao buscar produtos bloqueados:', err);
     }
@@ -836,7 +855,7 @@ export default function StudentMenu() {
         </div>
       )}
 
-      {/* MODAL DE RECARGA DIRETA VIA PIX */}
+      {/* 📱 MODAL DE RECARGA DIRETA VIA PIX */}
       {showRechargeModal && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -857,7 +876,12 @@ export default function StudentMenu() {
                 💡 <strong>Instrução:</strong> Faça o PIX do valor desejado no banco e apresente o comprovante na cantina para a atualização do seu saldo.
               </div>
 
-              <button type="button" className="btn-close-modal" onClick={() => setShowRechargeModal(false)}>
+              <button
+                type="button"
+                className="btn-close-modal"
+                onClick={() => setShowRechargeModal(false)}
+                style={{ marginTop: '16px', width: '100%' }}
+              >
                 Fechar
               </button>
             </div>
