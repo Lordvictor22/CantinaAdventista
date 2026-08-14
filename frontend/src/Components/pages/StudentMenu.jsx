@@ -5,7 +5,6 @@ import logoAdventista from '../../assets/logoAdventistaCentenario.png';
 import logoGostosoSabor from '../../assets/GostososaborlogoreduzidoGIMP.png';
 import './MenuPage.css';
 
-// 💡 CONFIGURE A CHAVE PIX DA CANTINA AQUI
 const PIX_KEY = "suachavepix@email.com"; 
 
 export default function StudentMenu() {
@@ -20,7 +19,7 @@ export default function StudentMenu() {
   const [studentId, setStudentId] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState('');
   
-  // ESTADO DO DROPDOWN DE USUÁRIO
+  // ESTADOS DO MENU DE USUÁRIO
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -28,6 +27,12 @@ export default function StudentMenu() {
   // ESTADOS DA CARTEIRA / SALDO
   const [balance, setBalance] = useState(0);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+
+  // ESTADOS DO PAINEL DO RESPONSÁVEL (CONTROLE PARENTAL)
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [showParentModal, setShowParentModal] = useState(false);
+  const [blockedProductIds, setBlockedProductIds] = useState([]);
 
   const [pickupDate, setPickupDate] = useState(
     new Date().toISOString().split('T')[0]
@@ -40,9 +45,6 @@ export default function StudentMenu() {
   const categories = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces'];
 
   useEffect(() => {
-    loadProducts();
-    loadStudentOrders();
-
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       try {
@@ -51,7 +53,6 @@ export default function StudentMenu() {
         setStudentEmail(user.email || '');
         setStudentId(user.id);
         
-        // Carrega foto salva localmente ou do perfil
         const savedAvatar = localStorage.getItem(`userAvatar_${user.id}`);
         if (savedAvatar) {
           setAvatarUrl(savedAvatar);
@@ -60,12 +61,15 @@ export default function StudentMenu() {
         }
 
         loadStudentBalance(user.id);
+        loadBlockedProducts(user.id);
       } catch (err) {
         console.error('Erro ao ler usuário local:', err);
       }
     }
 
-    // Fechar menu de usuário ao clicar fora
+    loadProducts();
+    loadStudentOrders();
+
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
@@ -76,7 +80,10 @@ export default function StudentMenu() {
     const interval = setInterval(() => {
       loadProducts();
       loadStudentOrders();
-      if (studentId) loadStudentBalance(studentId);
+      if (studentId) {
+        loadStudentBalance(studentId);
+        loadBlockedProducts(studentId);
+      }
     }, 30000);
 
     return () => {
@@ -93,6 +100,17 @@ export default function StudentMenu() {
       setBalance(res.data.user?.balance || 0);
     } catch (err) {
       console.error('Erro ao buscar saldo:', err);
+    }
+  };
+
+  const loadBlockedProducts = async (idToUse) => {
+    const id = idToUse || studentId;
+    if (!id) return;
+    try {
+      const res = await api.get(`/parent/blocked/${id}`);
+      setBlockedProductIds(res.data || []);
+    } catch (err) {
+      console.error('Erro ao buscar produtos bloqueados:', err);
     }
   };
 
@@ -115,9 +133,7 @@ export default function StudentMenu() {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         },
-        params: {
-          _: Date.now()
-        }
+        params: { _: Date.now() }
       });
       setMyOrders(res.data || []);
     } catch (err) {
@@ -135,29 +151,70 @@ export default function StudentMenu() {
     }, 3500);
   };
 
-  // UPLOAD DA FOTO DE PERFIL
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = function (event) {
+      reader.onload = async function (event) {
         const imageBase64 = event.target.result;
         setAvatarUrl(imageBase64);
         if (studentId) {
           localStorage.setItem(`userAvatar_${studentId}`, imageBase64);
         }
-        showToast('Foto de perfil atualizada!');
+        try {
+          const token = localStorage.getItem('token');
+          await api.put('/auth/avatar', { userId: studentId, avatar: imageBase64 }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          showToast('Foto de perfil atualizada!');
+        } catch (err) {
+          showToast('Foto salva localmente.', 'warning');
+        }
         setShowUserMenu(false);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // LOGOUT (SAIR)
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
+  };
+
+  // VALIDAÇÃO DO PIN DO RESPONSÁVEL
+  const handlePinSubmit = (e) => {
+    e.preventDefault();
+    if (pinInput === '1234') { // PIN PADRÃO: 1234
+      setShowPinModal(false);
+      setPinInput('');
+      setShowParentModal(true);
+    } else {
+      showToast('PIN incorreto! Tente novamente.', 'error');
+    }
+  };
+
+  // BLOQUEAR / DESBLOQUEAR PRODUTO NA ÁREA DOS PAIS
+  const handleToggleBlock = async (productId) => {
+    if (!studentId) return;
+    try {
+      const res = await api.post('/parent/toggle-block', {
+        studentId,
+        productId
+      });
+
+      if (res.data.isBlocked) {
+        setBlockedProductIds((prev) => [...prev, productId]);
+        // Remove do carrinho se o produto foi bloqueado
+        setCart((prev) => prev.filter((item) => item.id !== productId));
+        showToast('Alimento bloqueado para o aluno.');
+      } else {
+        setBlockedProductIds((prev) => prev.filter((id) => id !== productId));
+        showToast('Alimento liberado!');
+      }
+    } catch (err) {
+      showToast('Erro ao atualizar permissão do alimento.', 'error');
+    }
   };
 
   const addToCart = (product) => {
@@ -210,10 +267,15 @@ export default function StudentMenu() {
     });
   };
 
+  // FILTRA PRODUTOS QUE NÃO ESTÃO BLOQUEADOS PELO RESPONSÁVEL
+  const visibleProducts = products.filter(
+    (p) => !blockedProductIds.includes(p.id)
+  );
+
   const filteredProducts =
     selectedCategory === 'Todos'
-      ? products
-      : products.filter(
+      ? visibleProducts
+      : visibleProducts.filter(
           (p) => p.category?.toLowerCase() === selectedCategory.toLowerCase()
         );
 
@@ -243,9 +305,7 @@ export default function StudentMenu() {
             quantity: item.quantity
           }))
         },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       showToast('Pedido agendado com sucesso! 🎉');
@@ -281,7 +341,6 @@ export default function StudentMenu() {
         ))}
       </div>
 
-      {/* INPUT OCULTO PARA SELECIONAR FOTO DE PERFIL */}
       <input
         type="file"
         ref={fileInputRef}
@@ -302,10 +361,9 @@ export default function StudentMenu() {
 
         <nav className="header-navigation" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div className="cantina-badge-logo">
-            <img src={logoGostosoSabor} alt="Gostoso Sabor" />
+            <img src={logoGostosoSabor} alt="Gostoso Sabor" style={{ maxHeight: '38px' }} />
           </div>
 
-          {/* PERFIL E MENU DROPDOWN NO TOPO */}
           <div className="user-profile-menu" ref={userMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
@@ -348,7 +406,6 @@ export default function StudentMenu() {
               )}
             </button>
 
-            {/* DROPDOWN MENU */}
             {showUserMenu && (
               <div
                 style={{
@@ -359,7 +416,7 @@ export default function StudentMenu() {
                   color: '#333',
                   borderRadius: '8px',
                   boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-                  width: '220px',
+                  width: '230px',
                   zIndex: 1000,
                   overflow: 'hidden',
                   border: '1px solid #eee'
@@ -392,10 +449,33 @@ export default function StudentMenu() {
                     gap: '8px',
                     color: '#333'
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   📷 Alterar Foto
+                </button>
+
+                {/* OPÇÃO DE NAVEGAÇÃO DOS PAIS */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowPinModal(true);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    textAlign: 'left',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1d3557',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  👨‍👩‍👧 Área do Responsável
                 </button>
 
                 <div style={{ borderTop: '1px solid #f0f0f0' }} />
@@ -417,8 +497,6 @@ export default function StudentMenu() {
                     color: '#dc2626',
                     fontWeight: '500'
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   🚪 Sair da Conta
                 </button>
@@ -431,7 +509,6 @@ export default function StudentMenu() {
       {/* CONTEÚDO PRINCIPAL */}
       <main className="menu-container">
         <div className="main-content">
-          {/* SAUDAÇÃO + SALDO DA CARTEIRA */}
           <section className="welcome-section">
             <div>
               <span className="section-kicker">CANTINA ESCOLAR</span>
@@ -454,7 +531,6 @@ export default function StudentMenu() {
             </div>
           </section>
 
-          {/* DATA E TURNO */}
           <section className="schedule-card">
             <div className="schedule-title">
               <div>
@@ -488,7 +564,6 @@ export default function StudentMenu() {
             </div>
           </section>
 
-          {/* CARDÁPIO */}
           <section className="products-section">
             <div className="category-tabs">
               {categories.map((cat) => (
@@ -515,9 +590,7 @@ export default function StudentMenu() {
                       {product.image_url && product.image_url.trim() !== '' ? (
                         <img src={product.image_url} alt={product.name} className="product-image" />
                       ) : (
-                        <div className="no-photo-placeholder">
-                          📷 Sem foto
-                        </div>
+                        <div className="no-photo-placeholder">📷 Sem foto</div>
                       )}
                     </div>
 
@@ -529,7 +602,6 @@ export default function StudentMenu() {
                       
                       <div className="product-price-row">
                         <span className="product-price">{formatMoney(product.price)}</span>
-                        
                         <span className={`stock-badge ${isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
                           {isOutOfStock ? 'Esgotado' : `Estoque: ${product.stock ?? 0}`}
                         </span>
@@ -568,10 +640,7 @@ export default function StudentMenu() {
           </section>
         </div>
 
-        {/* COLUNA LATERAL */}
         <aside id="pedido" className="sidebar">
-          
-          {/* NOVO PEDIDO */}
           <div className="cart-card">
             <div className="cart-header">
               <h2>Novo Pedido</h2>
@@ -608,7 +677,6 @@ export default function StudentMenu() {
             )}
           </div>
 
-          {/* HISTÓRICO DE PEDIDOS */}
           <div className="history-card">
             <div className="cart-header">
               <h2>Meus Pedidos Realizados</h2>
@@ -653,46 +721,135 @@ export default function StudentMenu() {
               </div>  
             )}
           </div>
-
         </aside>
       </main>
+
+      {/* 🔐 MODAL DE VALIDAÇÃO DE SENHA/PIN DO RESPONSÁVEL */}
+      {showPinModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: '380px', textAlign: 'center' }}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowPinModal(false)}>✕</button>
+            <h3 className="modal-title">👨‍👩‍👧 Acesso do Responsável</h3>
+            <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>
+              Digite a senha/PIN de 4 dígitos do responsável para gerenciar as permissões alimentares.
+            </p>
+
+            <form onSubmit={handlePinSubmit}>
+              <input
+                type="password"
+                maxLength="4"
+                placeholder="Ex: 1234"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '20px',
+                  textAlign: 'center',
+                  letterSpacing: '8px',
+                  borderRadius: '8px',
+                  border: '1px solid #ccc',
+                  marginBottom: '16px'
+                }}
+                autoFocus
+              />
+              <p style={{ fontSize: '11px', color: '#888', marginBottom: '16px' }}>
+                💡 Senha padrão de teste: <strong>1234</strong>
+              </p>
+
+              <button type="submit" className="btn-checkout" style={{ width: '100%' }}>
+                Entrar no Painel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🛡️ MODAL DA ÁREA DO RESPONSÁVEL (CONTROLE PARENTAL) */}
+      {showParentModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: '600px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowParentModal(false)}>✕</button>
+            
+            <h3 className="modal-title">🛡️ Controle Alimentar do Aluno</h3>
+            <p style={{ fontSize: '14px', color: '#555', marginBottom: '20px' }}>
+              Ative ou desative os alimentos que <strong>{studentName}</strong> pode visualizar e comprar na cantina:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {products.map((product) => {
+                const isBlocked = blockedProductIds.includes(product.id);
+
+                return (
+                  <div
+                    key={product.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: isBlocked ? '#fef2f2' : '#f8fafc',
+                      border: isBlocked ? '1px solid #fecaca' : '1px solid #e2e8f0'
+                    }}
+                  >
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '15px', color: isBlocked ? '#dc2626' : '#1e293b' }}>
+                        {product.name}
+                      </strong>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                        {product.category} • {formatMoney(product.price)}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleBlock(product.id)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        backgroundColor: isBlocked ? '#dc2626' : '#16a34a',
+                        color: '#ffffff',
+                        transition: '0.2s'
+                      }}
+                    >
+                      {isBlocked ? '🚫 Bloqueado' : '✓ Liberado'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="btn-close-modal"
+              onClick={() => setShowParentModal(false)}
+              style={{ marginTop: '20px', width: '100%' }}
+            >
+              Concluir Alterações
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE RECARGA DIRETA VIA PIX */}
       {showRechargeModal && (
         <div className="modal-overlay">
           <div className="modal-card">
-            
-            <button 
-              type="button"
-              className="modal-close-icon"
-              onClick={() => setShowRechargeModal(false)}
-            >
-              ✕
-            </button>
-
+            <button type="button" className="modal-close-icon" onClick={() => setShowRechargeModal(false)}>✕</button>
             <h3 className="modal-title">📱 Recarga via PIX</h3>
 
             <div className="pix-container">
-              <p className="pix-title">
-                Transfira para a Chave PIX da Cantina:
-              </p>
+              <p className="pix-title">Transfira para a Chave PIX da Cantina:</p>
+              <p className="pix-subtitle">Copie a chave abaixo para usar no app do seu banco:</p>
 
-              <p className="pix-subtitle">
-                Copie a chave abaixo para usar no app do seu banco:
-              </p>
+              <input type="text" readOnly value={PIX_KEY} className="pix-input-key" />
 
-              <input
-                type="text"
-                readOnly
-                value={PIX_KEY}
-                className="pix-input-key"
-              />
-
-              <button
-                type="button"
-                className="pix-copy-button"
-                onClick={handleCopyPixKey}
-              >
+              <button type="button" className="pix-copy-button" onClick={handleCopyPixKey}>
                 📋 Copiar Chave PIX
               </button>
 
@@ -700,15 +857,10 @@ export default function StudentMenu() {
                 💡 <strong>Instrução:</strong> Faça o PIX do valor desejado no banco e apresente o comprovante na cantina para a atualização do seu saldo.
               </div>
 
-              <button
-                type="button"
-                className="btn-close-modal"
-                onClick={() => setShowRechargeModal(false)}
-              >
+              <button type="button" className="btn-close-modal" onClick={() => setShowRechargeModal(false)}>
                 Fechar
               </button>
             </div>
-
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@
   const orderRoutes = require('./routes/orderRoutes');
   const uploadRoutes = require('./routes/upload'); // Rota de upload de imagens
   const paymentRoutes = require('./routes/paymentRoutes'); // 👈 ADD: Rota do Mercado Pago (Dinheiro Real)
-
+  const { getBlockedProducts, toggleBlockProduct } = require('./controllers/parentController');
   const app = express();
   app.use((req, res, next) => {
   console.log('================================');
@@ -43,6 +43,11 @@
   app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date() });
   });
+
+
+  // Rotas de controle dos pais
+  app.get('/parent/blocked/:studentId', getBlockedProducts);
+  app.post('/parent/toggle-block', toggleBlockProduct);
 
   // =============================================================
   // ROBÔ DE EXPIRAÇÃO AUTOMÁTICA DE PEDIDOS (A CADA 2 MINUTOS)
