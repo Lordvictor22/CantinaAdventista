@@ -14,6 +14,16 @@
   const paymentRoutes = require('./routes/paymentRoutes'); // 👈 ADD: Rota do Mercado Pago (Dinheiro Real)
 
   const app = express();
+  app.use((req, res, next) => {
+  console.log('================================');
+  console.log('REQUISIÇÃO RECEBIDA');
+  console.log('METHOD:', req.method);
+  console.log('URL:', req.originalUrl);
+  console.log('AUTH:', req.headers.authorization ? 'SIM' : 'NÃO');
+  console.log('================================');
+
+  next();
+});
 
   // Configuração do CORS
   app.use(cors());
@@ -57,7 +67,7 @@
     }
   }, 2 * 60 * 1000);
 
-  // Tratamento para rotas inexistentes (404)
+  // Tratamento para rotas inexistentes (404) 
   app.use((req, res) => {
     res.status(404).json({ error: 'Rota não encontrada.' });
   });
