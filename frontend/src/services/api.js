@@ -4,16 +4,22 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://cantinabackend-dvf3.onr
 
 const api = axios.create({
   baseURL: API_URL,
+  headers: {
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache'
+  }
 });
 
 // Interceptor de requisição: injeta o JWT e ajusta cabeçalhos dinamicamente
 api.interceptors.request.use(
   (config) => {
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
+      config.headers['Cache-Control'] = 'no-cache';
+      config.headers['Pragma'] = 'no-cache';
     // Se for envio de arquivo (FormData), remove o Content-Type para o Axios/navegador definir o boundary correto
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
