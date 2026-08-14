@@ -162,22 +162,25 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Buscar histórico de pedidos do ALUNO LOGADO
+// Buscar SOMENTE os pedidos do aluno que está logado
 const getUserOrders = async (req, res) => {
   try {
-    // Pega o ID do usuário diretamente do middleware JWT
-    const userId = req.user?.id;
+    // ID vem diretamente do token do usuário logado
+    const userId = req.user.id;
 
     if (!userId) {
-      return res.status(401).json({ error: 'Usuário não autenticado.' });
+      return res.status(401).json({
+        error: 'Usuário não autenticado.'
+      });
     }
 
     const queryText = `
       SELECT 
-        o.id, 
-        o.student_name, 
-        TO_CHAR(o.pickup_date, 'YYYY-MM-DD') AS pickup_date, 
-        o.pickup_time, 
+        o.id,
+        o.user_id,
+        o.student_name,
+        TO_CHAR(o.pickup_date, 'YYYY-MM-DD') AS pickup_date,
+        o.pickup_time,
         o.status,
         o.total,
         json_agg(
@@ -191,17 +194,32 @@ const getUserOrders = async (req, res) => {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
+
       WHERE o.user_id = $1
-      GROUP BY o.id
+
+      GROUP BY 
+        o.id,
+        o.user_id,
+        o.student_name,
+        o.pickup_date,
+        o.pickup_time,
+        o.status,
+        o.total
+
       ORDER BY o.id DESC;
     `;
 
     const result = await db.query(queryText, [userId]);
+
     return res.json(result.rows);
+
   } catch (error) {
-    console.error('ERRO AO BUSCAR HISTÓRICO DO ALUNO:', error.message);
-    return res.status(500).json({ error: 'Erro ao carregar histórico.' });
+    console.error('ERRO AO BUSCAR PEDIDOS DO ALUNO:', error.message);
+
+    return res.status(500).json({
+      error: 'Erro ao carregar seus pedidos.'
+    });
   }
-};
+};  
 
 module.exports = { createOrder, getOrders, updateOrderStatus, getUserOrders };
