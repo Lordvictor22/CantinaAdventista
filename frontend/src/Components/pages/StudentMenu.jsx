@@ -7,6 +7,33 @@ import './MenuPage.css';
 
 const PIX_KEY = "suachavepix@email.com"; 
 
+// Função auxiliar para data local no formato YYYY-MM-DD (evita bug de UTC após 21h)
+const getTodayLocalDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Aplica a máscara DD/MM/AAAA enquanto digita
+const maskDateBR = (value) => {
+  return value
+    .replace(/\D/g, '') // Remove o que não for número
+    .replace(/(\d{2})(\d)/, '$1/$2') // Adiciona a primeira barra
+    .replace(/(\d{2})\/(\d{2})(\d)/, '$1/$2/$3') // Adiciona a segunda barra
+    .replace(/(\d{2}\/\d{2}\/\d{4})\d+?$/, '$1'); // Limita a 10 caracteres
+};
+
+// Converte DD/MM/AAAA para YYYY-MM-DD para salvar no backend
+const convertBRToISO = (brDate) => {
+  if (brDate.length === 10) {
+    const [day, month, year] = brDate.split('/');
+    return `${year}-${month}-${day}`;
+  }
+  return brDate;
+};
+
 export default function StudentMenu() {
   const navigate = useNavigate();
 
@@ -32,11 +59,52 @@ export default function StudentMenu() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [showParentModal, setShowParentModal] = useState(false);
-  const [blockedProductIds, setBlockedProductIds] = useState([]);
 
-  const [pickupDate, setPickupDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  // INICIALIZAÇÃO IMEDIATA DO CACHE LOCAL DE BLOQUEIOS
+  const [blockedProductIds, setBlockedProductIds] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        const savedBlocked = localStorage.getItem(`blockedProducts_${u.id}`);
+        if (savedBlocked) {
+          return JSON.parse(savedBlocked).map(Number);
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao ler cache inicial de bloqueios:', e);
+    }
+    return [];
+  });
+
+  // Converte datas para o formato brasileiro DD/MM/YYYY com segurança
+  const formatDateBR = (dateString) => {
+    if (!dateString) return '';
+
+    // Remove horário caso venha em formato ISO (T) ou com espaço
+    const cleanDate = String(dateString).split('T')[0].split(' ')[0];
+
+    // Se já estiver no formato YYYY-MM-DD (ex: 2026-08-14)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      const [year, month, day] = cleanDate.split('-');
+      return `${day}/${month}/${year}`;
+    }
+
+    // Se já estiver no formato DD/MM/YYYY (ex: 14/08/2026)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleanDate)) {
+      return cleanDate;
+    }
+
+    return cleanDate;
+  };
+
+  // ESTADOS DE DATA (pickupDate salva no backend | dateInputText exibe na tela)
+  const [pickupDate, setPickupDate] = useState(getTodayLocalDate());
+  const [dateInputText, setDateInputText] = useState(() => {
+    const [y, m, d] = getTodayLocalDate().split('-');
+    return `${d}/${m}/${y}`;
+  });
+
   const [pickupTime, setPickupTime] = useState('Manhã');
   const [loading, setLoading] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -44,7 +112,7 @@ export default function StudentMenu() {
 
   const categories = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces'];
 
-  // 1. CARREGAMENTO INICIAL DO USUÁRIO E DADOS RELACIONADOS
+  // CARREGAMENTO INICIAL DO USUÁRIO E DADOS
   useEffect(() => {
     let currentId = null;
     const savedUser = localStorage.getItem('user');
@@ -74,7 +142,6 @@ export default function StudentMenu() {
     loadProducts();
     loadStudentOrders();
 
-    // Listener para fechar o menu dropdown de usuário ao clicar fora
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
@@ -82,7 +149,6 @@ export default function StudentMenu() {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Polling automático a cada 30s
     const interval = setInterval(() => {
       loadProducts();
       loadStudentOrders();
@@ -110,26 +176,40 @@ export default function StudentMenu() {
   };
 
   const loadBlockedProducts = async (idToUse) => {
-    let id = idToUse || studentId;
-    if (!id) {
-      const savedUser = localStorage.getItem('user');
-      if (savedUser) {
-        try {
-          const u = JSON.parse(savedUser);
-          id = u.id;
-        } catch (e) {}
-      }
-    }
-
+    const id = idToUse || studentId;
     if (!id) return;
 
+    let localBlocked = [];
+    const savedBlocked = localStorage.getItem(`blockedProducts_${id}`);
+    if (savedBlocked) {
+      try {
+        localBlocked = JSON.parse(savedBlocked).map(Number);
+        setBlockedProductIds(localBlocked);
+      } catch (e) {}
+    }
+
     try {
-      const res = await api.get(`/parent/blocked/${id}`);
-      if (Array.isArray(res.data)) {
-        setBlockedProductIds(res.data);
+      const token = localStorage.getItem('token');
+      const res = await api.get(`/parent/blocked/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        const normalizedIds = res.data.map((item) => {
+          const rawId = typeof item === 'object' && item !== null
+            ? (item.productId || item.product_id || item.id)
+            : item;
+          return Number(rawId);
+        }).filter((n) => !isNaN(n));
+
+        setBlockedProductIds(normalizedIds);
+        localStorage.setItem(`blockedProducts_${id}`, JSON.stringify(normalizedIds));
+        
+        // Remove itens recém-bloqueados do carrinho
+        setCart((prevCart) => prevCart.filter((item) => !normalizedIds.includes(Number(item.id))));
       }
     } catch (err) {
-      console.error('Erro ao buscar produtos bloqueados:', err);
+      console.warn('Backend offline ou em sincronização. Mantendo bloqueios salvos no dispositivo.');
     }
   };
 
@@ -163,7 +243,7 @@ export default function StudentMenu() {
   };
 
   const showToast = (message, type = 'success') => {
-    const id = Date.now();
+    const id = `${Date.now()}_${Math.random()}`;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
@@ -201,10 +281,9 @@ export default function StudentMenu() {
     navigate('/login');
   };
 
-  // VALIDAÇÃO DO PIN DO RESPONSÁVEL
   const handlePinSubmit = (e) => {
     e.preventDefault();
-    if (pinInput === '1234') { // PIN PADRÃO: 1234
+    if (pinInput === '1234') { 
       setShowPinModal(false);
       setPinInput('');
       setShowParentModal(true);
@@ -213,26 +292,39 @@ export default function StudentMenu() {
     }
   };
 
-  // BLOQUEAR / DESBLOQUEAR PRODUTO NA ÁREA DOS PAIS
   const handleToggleBlock = async (productId) => {
     if (!studentId) return;
-    try {
-      const res = await api.post('/parent/toggle-block', {
-        studentId,
-        productId
-      });
 
-      if (res.data.isBlocked) {
-        setBlockedProductIds((prev) => [...prev, productId]);
-        // Remove do carrinho se o produto foi bloqueado
-        setCart((prev) => prev.filter((item) => item.id !== productId));
-        showToast('Alimento bloqueado para o aluno.');
-      } else {
-        setBlockedProductIds((prev) => prev.filter((id) => id !== productId));
-        showToast('Alimento liberado!');
-      }
+    const numId = Number(productId);
+    const currentList = blockedProductIds.map(Number);
+    const isCurrentlyBlocked = currentList.includes(numId);
+
+    const updatedBlocked = isCurrentlyBlocked
+      ? currentList.filter((id) => id !== numId)
+      : [...currentList, numId];
+
+    setBlockedProductIds(updatedBlocked);
+    localStorage.setItem(`blockedProducts_${studentId}`, JSON.stringify(updatedBlocked));
+
+    if (!isCurrentlyBlocked) {
+      setCart((prev) => prev.filter((item) => Number(item.id) !== numId));
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await api.post(
+        '/parent/toggle-block',
+        {
+          studentId: Number(studentId),
+          productId: numId,
+          student_id: Number(studentId),
+          product_id: numId
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showToast(isCurrentlyBlocked ? 'Alimento liberado!' : 'Alimento bloqueado para o aluno.');
     } catch (err) {
-      showToast('Erro ao atualizar permissão do alimento.', 'error');
+      showToast('Salvo com sucesso no aparelho.', 'warning');
     }
   };
 
@@ -243,14 +335,14 @@ export default function StudentMenu() {
     }
 
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+      const existing = prev.find((item) => Number(item.id) === Number(product.id));
       if (existing) {
         if (product.stock !== undefined && existing.quantity >= product.stock) {
           showToast(`Limite do estoque atingido (${product.stock} un.).`, 'error');
           return prev;
         }
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          Number(item.id) === Number(product.id) ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
       return [...prev, { ...product, quantity: 1 }];
@@ -262,7 +354,7 @@ export default function StudentMenu() {
     setCart((prev) =>
       prev
         .map((item) => {
-          if (item.id === id) {
+          if (Number(item.id) === Number(id)) {
             const newQuantity = item.quantity + delta;
             if (delta > 0 && item.stock !== undefined && newQuantity > item.stock) {
               showToast(`Limite máximo do estoque atingido (${item.stock} un.).`, 'error');
@@ -286,9 +378,8 @@ export default function StudentMenu() {
     });
   };
 
-  // FILTRA PRODUTOS QUE NÃO ESTÃO BLOQUEADOS PELO RESPONSÁVEL
   const visibleProducts = products.filter(
-    (p) => !blockedProductIds.includes(p.id)
+    (p) => !blockedProductIds.map(Number).includes(Number(p.id))
   );
 
   const filteredProducts =
@@ -348,7 +439,7 @@ export default function StudentMenu() {
 
   return (
     <div className="page-wrapper">
-      {/* NOTIFICAÇÕES */}
+      {/* TOASTS */}
       <div className="toast-container">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast ${toast.type}`}>
@@ -368,7 +459,7 @@ export default function StudentMenu() {
         style={{ display: 'none' }}
       />
 
-      {/* CABEÇALHO */}
+      {/* HEADER */}
       <header className="adventist-header">
         <div className="brand-section">
           <img src={logoAdventista} alt="Educação Adventista" className="logo-adventista-header" />
@@ -378,144 +469,68 @@ export default function StudentMenu() {
           </div>
         </div>
 
-        <nav className="header-navigation" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <nav className="header-navigation">
           <div className="cantina-badge-logo">
-            <img src={logoGostosoSabor} alt="Gostoso Sabor" style={{ maxHeight: '38px' }} />
+            <img src={logoGostosoSabor} alt="Gostoso Sabor" />
           </div>
 
-          <div className="user-profile-menu" ref={userMenuRef} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className="btn-header-parent"
+            onClick={() => setShowPinModal(true)}
+          >
+            🛡️ Área dos Pais
+          </button>
+
+          <div className="user-profile-menu" ref={userMenuRef}>
             <button
               type="button"
+              className="user-avatar-btn"
               onClick={() => setShowUserMenu(!showUserMenu)}
-              style={{
-                background: 'none',
-                border: '2px solid #fff',
-                borderRadius: '50%',
-                padding: '0',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                overflow: 'hidden',
-                width: '42px',
-                height: '42px'
-              }}
             >
               {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt="Perfil"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                <img src={avatarUrl} alt="Perfil" className="user-avatar-img" />
               ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: '#1d3557',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 'bold',
-                    fontSize: '18px'
-                  }}
-                >
+                <div className="user-avatar-fallback">
                   {studentName ? studentName.charAt(0).toUpperCase() : 'U'}
                 </div>
               )}
             </button>
 
             {showUserMenu && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '50px',
-                  backgroundColor: '#ffffff',
-                  color: '#333',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-                  width: '230px',
-                  zIndex: 1000,
-                  overflow: 'hidden',
-                  border: '1px solid #eee'
-                }}
-              >
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
-                  <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px', color: '#111' }}>
-                    {studentName || 'Usuário'}
-                  </p>
+              <div className="user-dropdown-menu">
+                <div className="user-dropdown-header">
+                  <p className="user-dropdown-name">{studentName || 'Usuário'}</p>
                   {studentEmail && (
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#666' }}>
-                      {studentEmail}
-                    </p>
+                    <p className="user-dropdown-email">{studentEmail}</p>
                   )}
                 </div>
 
                 <button
                   type="button"
+                  className="user-dropdown-item"
                   onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: '#333'
-                  }}
                 >
                   📷 Alterar Foto
                 </button>
 
-                {/* OPÇÃO DE NAVEGAÇÃO DOS PAIS */}
                 <button
                   type="button"
+                  className="user-dropdown-item highlight"
                   onClick={() => {
                     setShowUserMenu(false);
                     setShowPinModal(true);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: '#1d3557',
-                    fontWeight: 'bold'
                   }}
                 >
                   👨‍👩‍👧 Área do Responsável
                 </button>
 
-                <div style={{ borderTop: '1px solid #f0f0f0' }} />
+                <div className="user-dropdown-divider" />
 
                 <button
                   type="button"
+                  className="user-dropdown-item logout"
                   onClick={handleLogout}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: '#dc2626',
-                    fontWeight: '500'
-                  }}
                 >
                   🚪 Sair da Conta
                 </button>
@@ -535,18 +550,33 @@ export default function StudentMenu() {
               <p>Escolha seu lanche para o próximo recreio.</p>
             </div>
 
-            <div className="wallet-badge">
-              <div>
-                <span className="wallet-label">SEU SALDO</span>
-                <strong className="wallet-amount">{formatMoney(balance)}</strong>
+            <div className="welcome-widgets">
+              {/* CARD DE SALDO */}
+              <div className="wallet-badge">
+                <div>
+                  <span className="wallet-label">SEU SALDO</span>
+                  <strong className="wallet-amount">{formatMoney(balance)}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="btn-add-balance"
+                  onClick={() => setShowRechargeModal(true)}
+                >
+                  ➕ Adicionar Saldo
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn-add-balance"
-                onClick={() => setShowRechargeModal(true)}
+
+              {/* CARD DE ATALHO DIRETO PARA OS PAIS */}
+              <div 
+                className="parent-quick-card"
+                onClick={() => setShowPinModal(true)}
               >
-                ➕ Adicionar Saldo
-              </button>
+                <span className="parent-card-icon">🛡️</span>
+                <div>
+                  <strong className="parent-card-title">Controle dos Pais</strong>
+                  <span className="parent-card-subtitle">Bloquear alimentos</span>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -561,11 +591,23 @@ export default function StudentMenu() {
             <div className="schedule-fields">
               <div className="input-group">
                 <label htmlFor="pickupDate">DATA</label>
+                
+                {/* INPUT COM MÁSCARA PT-BR QUE FORÇA DD/MM/AAAA */}
                 <input
                   id="pickupDate"
-                  type="date"
-                  value={pickupDate}
-                  onChange={(e) => setPickupDate(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  maxLength="10"
+                  value={dateInputText}
+                  onChange={(e) => {
+                    const masked = maskDateBR(e.target.value);
+                    setDateInputText(masked);
+                    
+                    if (masked.length === 10) {
+                      setPickupDate(convertBRToISO(masked));
+                    }
+                  }}
                 />
               </div>
 
@@ -599,7 +641,7 @@ export default function StudentMenu() {
 
             <div className="products-grid">
               {filteredProducts.map((product) => {
-                const cartItem = cart.find((item) => item.id === product.id);
+                const cartItem = cart.find((item) => Number(item.id) === Number(product.id));
                 const isOutOfStock = product.stock !== undefined && product.stock <= 0;
                 const isMaxReached = cartItem && product.stock !== undefined && cartItem.quantity >= product.stock;
 
@@ -717,21 +759,21 @@ export default function StudentMenu() {
                     </div>
                     
                     <p className="history-date">
-                      Retirada: {order.pickup_date} às {order.pickup_time}
+                      Retirada: {formatDateBR(order.pickup_date)} às {order.pickup_time}
                     </p>
 
                     <ul className="history-products">
                       {order.items?.map((item, idx) => (
-                        <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <li key={idx} className="history-product-line">
                           <span>{item.quantity}x {item.name || item.product_name || `Produto #${item.product_id}`}</span>
                           <span>{formatMoney(item.price || item.unit_price || 0)}</span>
                         </li>
                       ))}
                     </ul>
 
-                    <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px dashed #eee' }} />
+                    <hr className="history-divider" />
 
-                    <div className="history-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <div className="history-total-row">
                       <span>Total:</span>
                       <span>{formatMoney(order.total_amount || order.total || order.items?.reduce((acc, i) => acc + ((i.price || i.unit_price || 0) * i.quantity), 0))}</span>
                     </div>
@@ -743,40 +785,33 @@ export default function StudentMenu() {
         </aside>
       </main>
 
-      {/* 🔐 MODAL DE VALIDAÇÃO DE SENHA/PIN DO RESPONSÁVEL */}
+      {/* MODAL DE VALIDAÇÃO DE SENHA DO RESPONSÁVEL */}
       {showPinModal && (
         <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '380px', textAlign: 'center' }}>
+          <div className="modal-card modal-card-sm">
             <button type="button" className="modal-close-icon" onClick={() => setShowPinModal(false)}>✕</button>
             <h3 className="modal-title">👨‍👩‍👧 Acesso do Responsável</h3>
-            <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>
-              Digite a senha/PIN de 4 dígitos do responsável para gerenciar as permissões alimentares.
+            <p className="modal-subtitle">
+              Digite a senha/PIN do responsável para gerenciar os alimentos permitidos.
             </p>
 
             <form onSubmit={handlePinSubmit}>
               <input
                 type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength="4"
                 placeholder="Ex: 1234"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  fontSize: '20px',
-                  textAlign: 'center',
-                  letterSpacing: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid #ccc',
-                  marginBottom: '16px'
-                }}
+                className="pin-input-field"
                 autoFocus
               />
-              <p style={{ fontSize: '11px', color: '#888', marginBottom: '16px' }}>
-                💡 Senha padrão de teste: <strong>1234</strong>
+              <p className="pin-hint">
+                💡 Senha padrão: <strong>1234</strong>
               </p>
 
-              <button type="submit" className="btn-checkout" style={{ width: '100%' }}>
+              <button type="submit" className="btn-checkout btn-full">
                 Entrar no Painel
               </button>
             </form>
@@ -784,39 +819,31 @@ export default function StudentMenu() {
         </div>
       )}
 
-      {/* 🛡️ MODAL DA ÁREA DO RESPONSÁVEL (CONTROLE PARENTAL) */}
+      {/* MODAL DA ÁREA DO RESPONSÁVEL */}
       {showParentModal && (
         <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '600px', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div className="modal-card modal-card-lg">
             <button type="button" className="modal-close-icon" onClick={() => setShowParentModal(false)}>✕</button>
             
             <h3 className="modal-title">🛡️ Controle Alimentar do Aluno</h3>
-            <p style={{ fontSize: '14px', color: '#555', marginBottom: '20px' }}>
-              Ative ou desative os alimentos que <strong>{studentName}</strong> pode visualizar e comprar na cantina:
+            <p className="modal-subtitle">
+              Ative ou desative os alimentos para o aluno:
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="parent-product-list">
               {products.map((product) => {
-                const isBlocked = blockedProductIds.includes(product.id);
+                const isBlocked = blockedProductIds.map(Number).includes(Number(product.id));
 
                 return (
                   <div
                     key={product.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      backgroundColor: isBlocked ? '#fef2f2' : '#f8fafc',
-                      border: isBlocked ? '1px solid #fecaca' : '1px solid #e2e8f0'
-                    }}
+                    className={`parent-product-item ${isBlocked ? 'blocked' : 'allowed'}`}
                   >
                     <div>
-                      <strong style={{ display: 'block', fontSize: '15px', color: isBlocked ? '#dc2626' : '#1e293b' }}>
+                      <strong className={`parent-product-name ${isBlocked ? 'blocked-text' : ''}`}>
                         {product.name}
                       </strong>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      <span className="parent-product-meta">
                         {product.category} • {formatMoney(product.price)}
                       </span>
                     </div>
@@ -824,17 +851,7 @@ export default function StudentMenu() {
                     <button
                       type="button"
                       onClick={() => handleToggleBlock(product.id)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontSize: '13px',
-                        backgroundColor: isBlocked ? '#dc2626' : '#16a34a',
-                        color: '#ffffff',
-                        transition: '0.2s'
-                      }}
+                      className={`btn-toggle-block ${isBlocked ? 'is-blocked' : 'is-allowed'}`}
                     >
                       {isBlocked ? '🚫 Bloqueado' : '✓ Liberado'}
                     </button>
@@ -845,9 +862,8 @@ export default function StudentMenu() {
 
             <button
               type="button"
-              className="btn-close-modal"
+              className="btn-close-modal btn-full"
               onClick={() => setShowParentModal(false)}
-              style={{ marginTop: '20px', width: '100%' }}
             >
               Concluir Alterações
             </button>
@@ -855,7 +871,7 @@ export default function StudentMenu() {
         </div>
       )}
 
-      {/* 📱 MODAL DE RECARGA DIRETA VIA PIX */}
+      {/* MODAL DE RECARGA PIX */}
       {showRechargeModal && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -863,27 +879,12 @@ export default function StudentMenu() {
             <h3 className="modal-title">📱 Recarga via PIX</h3>
 
             <div className="pix-container">
-              <p className="pix-title">Transfira para a Chave PIX da Cantina:</p>
-              <p className="pix-subtitle">Copie a chave abaixo para usar no app do seu banco:</p>
-
-              <input type="text" readOnly value={PIX_KEY} className="pix-input-key" />
-
-              <button type="button" className="pix-copy-button" onClick={handleCopyPixKey}>
+              <p className="pix-title">Copie a chave PIX abaixo para transferir qualquer valor:</p>
+              <div className="pix-key-box">{PIX_KEY}</div>
+              <button type="button" className="btn-checkout btn-full" onClick={handleCopyPixKey}>
                 📋 Copiar Chave PIX
               </button>
-
-              <div className="pix-info-box">
-                💡 <strong>Instrução:</strong> Faça o PIX do valor desejado no banco e apresente o comprovante na cantina para a atualização do seu saldo.
-              </div>
-
-              <button
-                type="button"
-                className="btn-close-modal"
-                onClick={() => setShowRechargeModal(false)}
-                style={{ marginTop: '16px', width: '100%' }}
-              >
-                Fechar
-              </button>
+              <p className="pix-footer-notice">Após a transferência, envie o comprovante à cantina para a liberação do saldo.</p>
             </div>
           </div>
         </div>
