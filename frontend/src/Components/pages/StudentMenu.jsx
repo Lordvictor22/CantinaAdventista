@@ -15,7 +15,6 @@ const getTodayLocalDate = () => {
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-const [isCartModalOpen, setIsCartModalOpen] = useState(false);
 
 // Aplica a máscara DD/MM/AAAA enquanto digita
 const maskDateBR = (value) => {
@@ -40,6 +39,7 @@ export default function StudentMenu() {
 
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false); // MOVIDO PARA DENTRO DO COMPONENTE
   const [myOrders, setMyOrders] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [studentName, setStudentName] = useState('');
@@ -440,17 +440,18 @@ export default function StudentMenu() {
 
   return (
     <div className="page-wrapper">
-            {/* TOASTS FIXADOS NO TOPO */}
-        <div className="toast-container">
-          {toasts.map((toast) => (
-            <div key={toast.id} className={`toast ${toast.type}`}>
-              <span className="toast-icon">
-                {toast.type === 'success' ? '✓' : '!'}
-              </span>
-              <span>{toast.message}</span>
-            </div>
-          ))}
-        </div>
+      {/* TOASTS FIXADOS NO TOPO */}
+      <div className="toast-container">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast ${toast.type}`}>
+            <span className="toast-icon">
+              {toast.type === 'success' ? '✓' : '!'}
+            </span>
+            <span>{toast.message}</span>
+          </div>
+        ))}
+      </div>
+
       <input
         type="file"
         ref={fileInputRef}
@@ -785,90 +786,118 @@ export default function StudentMenu() {
         </aside>
       </main>
 
+      {/* BARRA FLUTUANTE DE CARRINHO NO MOBILE */}
+      {cart.length > 0 && (
+        <div className="mobile-floating-cart">
+          <div className="floating-cart-info">
+            <span className="floating-cart-count">
+              {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
+            </span>
+            <span className="floating-cart-total">{formatMoney(cartTotal)}</span>
+          </div>
 
-     {/* 2. BARRA FLUTUANTE DE CARRINHO (Apenas abre o modal ao clicar) */}
-        {cart.length > 0 && (
-          <div className="mobile-floating-cart">
-            <div className="floating-cart-info">
-              <span className="floating-cart-count">
-                {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
-              </span>
-              <span className="floating-cart-total">{formatMoney(cartTotal)}</span>
+          <button
+            type="button"
+            className="btn-floating-checkout"
+            onClick={() => setIsCartModalOpen(true)}
+          >
+            Ver Carrinho 🛒
+          </button>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DO PEDIDO */}
+      {isCartModalOpen && (
+        <div className="cart-modal-overlay" onClick={() => setIsCartModalOpen(false)}>
+          <div className="cart-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="cart-modal-header">
+              <h3>Resumo do Pedido</h3>
+              <button
+                type="button"
+                className="btn-close-modal"
+                onClick={() => setIsCartModalOpen(false)}
+              >
+                ✕
+              </button>
             </div>
+
+            <div className="cart-modal-body">
+              {cart.map((item) => (
+                <div key={item.id} className="cart-modal-item">
+                  <div className="cart-modal-item-info">
+                    <span className="item-name">{item.name}</span>
+                    <span className="item-qty">{item.quantity}x {formatMoney(item.price)}</span>
+                  </div>
+                  <span className="item-subtotal">
+                    {formatMoney(item.price * item.quantity)}
+                  </span>
+                </div>
+              ))}
+
+              <div className="cart-modal-summary">
+                <span>Total a Pagar:</span>
+                <strong>{formatMoney(cartTotal)}</strong>
+              </div>
+            </div>
+
+            <div className="cart-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-modal"
+                onClick={() => setIsCartModalOpen(false)}
+              >
+                Continuar Comprando
+              </button>
+              
+              <button
+                type="button"
+                className="btn-confirm-checkout"
+                onClick={() => {
+                  setIsCartModalOpen(false);
+                  handleCheckout();
+                }}
+              >
+                Confirmar e Pagar ✅
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE RECARGA / PIX */}
+      {showRechargeModal && (
+        <div className="modal-overlay" onClick={() => setShowRechargeModal(false)}>
+          <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowRechargeModal(false)}>✕</button>
+            <h3 className="modal-title">💳 Recarga via PIX</h3>
+            <p className="modal-subtitle">
+              Utilize a chave PIX abaixo para adicionar saldo à conta do aluno:
+            </p>
+
+            <div className="pix-key-box" onClick={handleCopyPixKey}>
+              <code>{PIX_KEY}</code>
+              <button type="button" className="btn-copy-pix">Copiar</button>
+            </div>
+
+            <p className="pix-instructions">
+              Após realizar a transferência, o saldo será creditado automaticamente na conta assim que a transação for confirmada.
+            </p>
 
             <button
               type="button"
-              className="btn-floating-checkout"
-              onClick={() => setIsCartModalOpen(true)}
+              className="btn-checkout btn-full"
+              onClick={() => setShowRechargeModal(false)}
             >
-              Ver Carrinho 🛒
+              Concluir
             </button>
           </div>
-        )}
-
-                {/* 3. MODAL DE CONFIRMAÇÃO DO PEDIDO */}
-        {isCartModalOpen && (
-          <div className="cart-modal-overlay" onClick={() => setIsCartModalOpen(false)}>
-            <div className="cart-modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="cart-modal-header">
-                <h3>Resumo do Pedido</h3>
-                <button
-                  type="button"
-                  className="btn-close-modal"
-                  onClick={() => setIsCartModalOpen(false)}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="cart-modal-body">
-                {cart.map((item) => (
-                  <div key={item.id} className="cart-modal-item">
-                    <div className="cart-modal-item-info">
-                      <span className="item-name">{item.name}</span>
-                      <span className="item-qty">{item.quantity}x {formatMoney(item.price)}</span>
-                    </div>
-                    <span className="item-subtotal">
-                      {formatMoney(item.price * item.quantity)}
-                    </span>
-                  </div>
-                ))}
-
-                <div className="cart-modal-summary">
-                  <span>Total a Pagar:</span>
-                  <strong>{formatMoney(cartTotal)}</strong>
-                </div>
-              </div>
-
-              <div className="cart-modal-actions">
-                <button
-                  type="button"
-                  className="btn-cancel-modal"
-                  onClick={() => setIsCartModalOpen(false)}
-                >
-                  Continuar Comprando
-                </button>
-                
-                <button
-                  type="button"
-                  className="btn-confirm-checkout"
-                  onClick={() => {
-                    setIsCartModalOpen(false);
-                    handleCheckout(); // Executa o pagamento/envio do pedido
-                  }}
-                >
-                  Confirmar e Pagar ✅
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
+        </div>
+      )}
 
       {/* MODAL DE VALIDAÇÃO DE SENHA DO RESPONSÁVEL */}
       {showPinModal && (
-        <div className="modal-overlay">
-          <div className="modal-card modal-card-sm">
+        <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
+          <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="modal-close-icon" onClick={() => setShowPinModal(false)}>✕</button>
             <h3 className="modal-title">👨‍👩‍👧 Acesso do Responsável</h3>
             <p className="modal-subtitle">
@@ -901,8 +930,8 @@ export default function StudentMenu() {
 
       {/* MODAL DA ÁREA DO RESPONSÁVEL */}
       {showParentModal && (
-        <div className="modal-overlay">
-          <div className="modal-card modal-card-lg">
+        <div className="modal-overlay" onClick={() => setShowParentModal(false)}>
+          <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="modal-close-icon" onClick={() => setShowParentModal(false)}>✕</button>
             
             <h3 className="modal-title">🛡️ Controle Alimentar do Aluno</h3>
@@ -920,12 +949,8 @@ export default function StudentMenu() {
                     className={`parent-product-item ${isBlocked ? 'blocked' : 'allowed'}`}
                   >
                     <div>
-                      <strong className={`parent-product-name ${isBlocked ? 'blocked-text' : ''}`}>
-                        {product.name}
-                      </strong>
-                      <span className="parent-product-meta">
-                        {product.category} • {formatMoney(product.price)}
-                      </span>
+                      <strong className="parent-product-name">{product.name}</strong>
+                      <p className="parent-product-category">{product.category}</p>
                     </div>
 
                     <button
@@ -933,38 +958,11 @@ export default function StudentMenu() {
                       className={`btn-toggle-block ${isBlocked ? 'is-blocked' : 'is-allowed'}`}
                       onClick={() => handleToggleBlock(product.id)}
                     >
-                      {isBlocked ? '🚫 Bloqueado' : '✓ Liberado'}
+                      {isBlocked ? '🚫 Bloqueado' : '✅ Permitido'}
                     </button>
                   </div>
                 );
               })}
-            </div>
-
-            <button
-              type="button"
-              className="btn-close-modal btn-full"
-              onClick={() => setShowParentModal(false)}
-            >
-              Concluir Alterações
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE RECARGA PIX */}
-      {showRechargeModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <button type="button" className="modal-close-icon" onClick={() => setShowRechargeModal(false)}>✕</button>
-            <h3 className="modal-title">📱 Recarga via PIX</h3>
-
-            <div className="pix-container">
-              <p className="pix-title">Copie a chave PIX abaixo para transferir qualquer valor:</p>
-              <div className="pix-key-box">{PIX_KEY}</div>
-              <button type="button" className="btn-checkout btn-full" onClick={handleCopyPixKey}>
-                📋 Copiar Chave PIX
-              </button>
-              <p className="pix-footer-notice">Após a transferência, envie o comprovante à cantina para a liberação do saldo.</p>
             </div>
           </div>
         </div>
