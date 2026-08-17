@@ -785,6 +785,27 @@ export default function StudentMenu() {
         </aside>
       </main>
 
+      {/* BARRA FLUTUANTE DE CARRINHO (MOBILE) */}
+      {cart.length > 0 && (
+        <div className="mobile-floating-cart">
+          <div className="floating-cart-info">
+            <span className="floating-cart-count">
+              {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
+            </span>
+            <span className="floating-cart-total">{formatMoney(cartTotal)}</span>
+          </div>
+
+          <button
+            type="button"
+            className="btn-floating-checkout"
+            onClick={handleCheckout}
+            disabled={loading}
+          >
+            {loading ? 'Enviando...' : 'Ver Carrinho / Pagar 🛒'}
+          </button>
+        </div>
+      )}
+
       {/* MODAL DE VALIDAÇÃO DE SENHA DO RESPONSÁVEL */}
       {showPinModal && (
         <div className="modal-overlay">
@@ -850,8 +871,8 @@ export default function StudentMenu() {
 
                     <button
                       type="button"
-                      onClick={() => handleToggleBlock(product.id)}
                       className={`btn-toggle-block ${isBlocked ? 'is-blocked' : 'is-allowed'}`}
+                      onClick={() => handleToggleBlock(product.id)}
                     >
                       {isBlocked ? '🚫 Bloqueado' : '✓ Liberado'}
                     </button>
