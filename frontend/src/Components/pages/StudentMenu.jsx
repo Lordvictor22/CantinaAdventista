@@ -439,18 +439,17 @@ export default function StudentMenu() {
 
   return (
     <div className="page-wrapper">
-      {/* TOASTS */}
-      <div className="toast-container">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast ${toast.type}`}>
-            <span className="toast-icon">
-              {toast.type === 'success' ? '✓' : '!'}
-            </span>
-            <span>{toast.message}</span>
-          </div>
-        ))}
-      </div>
-
+            {/* TOASTS FIXADOS NO TOPO */}
+        <div className="toast-container">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`toast ${toast.type}`}>
+              <span className="toast-icon">
+                {toast.type === 'success' ? '✓' : '!'}
+              </span>
+              <span>{toast.message}</span>
+            </div>
+          ))}
+        </div>
       <input
         type="file"
         ref={fileInputRef}
@@ -786,25 +785,29 @@ export default function StudentMenu() {
       </main>
 
       {/* BARRA FLUTUANTE DE CARRINHO (MOBILE) */}
-      {cart.length > 0 && (
-        <div className="mobile-floating-cart">
-          <div className="floating-cart-info">
-            <span className="floating-cart-count">
-              {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
-            </span>
-            <span className="floating-cart-total">{formatMoney(cartTotal)}</span>
-          </div>
+        {cart.length > 0 && (
+          <div className="mobile-floating-cart">
+            <div className="floating-cart-info">
+              <span className="floating-cart-count">
+                {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
+              </span>
+              <span className="floating-cart-total">{formatMoney(cartTotal)}</span>
+            </div>
 
-          <button
-            type="button"
-            className="btn-floating-checkout"
-            onClick={handleCheckout}
-            disabled={loading}
-          >
-            {loading ? 'Enviando...' : 'Ver Carrinho / Pagar 🛒'}
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              className="btn-floating-checkout"
+              onClick={() => {
+                const cartElement = document.getElementById('pedido');
+                if (cartElement) {
+                  cartElement.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            >
+              Ver Carrinho / Pagar 🛒
+            </button>
+          </div>
+        )}
 
       {/* MODAL DE VALIDAÇÃO DE SENHA DO RESPONSÁVEL */}
       {showPinModal && (
