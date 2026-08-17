@@ -15,6 +15,7 @@ const getTodayLocalDate = () => {
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+const [isCartModalOpen, setIsCartModalOpen] = useState(false);
 
 // Aplica a máscara DD/MM/AAAA enquanto digita
 const maskDateBR = (value) => {
@@ -784,7 +785,8 @@ export default function StudentMenu() {
         </aside>
       </main>
 
-      {/* BARRA FLUTUANTE DE CARRINHO (MOBILE) */}
+
+     {/* 2. BARRA FLUTUANTE DE CARRINHO (Apenas abre o modal ao clicar) */}
         {cart.length > 0 && (
           <div className="mobile-floating-cart">
             <div className="floating-cart-info">
@@ -797,17 +799,71 @@ export default function StudentMenu() {
             <button
               type="button"
               className="btn-floating-checkout"
-              onClick={() => {
-                const cartElement = document.getElementById('pedido');
-                if (cartElement) {
-                  cartElement.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={() => setIsCartModalOpen(true)}
             >
-              Ver Carrinho / Pagar 🛒
+              Ver Carrinho 🛒
             </button>
           </div>
         )}
+
+                {/* 3. MODAL DE CONFIRMAÇÃO DO PEDIDO */}
+        {isCartModalOpen && (
+          <div className="cart-modal-overlay" onClick={() => setIsCartModalOpen(false)}>
+            <div className="cart-modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="cart-modal-header">
+                <h3>Resumo do Pedido</h3>
+                <button
+                  type="button"
+                  className="btn-close-modal"
+                  onClick={() => setIsCartModalOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="cart-modal-body">
+                {cart.map((item) => (
+                  <div key={item.id} className="cart-modal-item">
+                    <div className="cart-modal-item-info">
+                      <span className="item-name">{item.name}</span>
+                      <span className="item-qty">{item.quantity}x {formatMoney(item.price)}</span>
+                    </div>
+                    <span className="item-subtotal">
+                      {formatMoney(item.price * item.quantity)}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="cart-modal-summary">
+                  <span>Total a Pagar:</span>
+                  <strong>{formatMoney(cartTotal)}</strong>
+                </div>
+              </div>
+
+              <div className="cart-modal-actions">
+                <button
+                  type="button"
+                  className="btn-cancel-modal"
+                  onClick={() => setIsCartModalOpen(false)}
+                >
+                  Continuar Comprando
+                </button>
+                
+                <button
+                  type="button"
+                  className="btn-confirm-checkout"
+                  onClick={() => {
+                    setIsCartModalOpen(false);
+                    handleCheckout(); // Executa o pagamento/envio do pedido
+                  }}
+                >
+                  Confirmar e Pagar ✅
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
 
       {/* MODAL DE VALIDAÇÃO DE SENHA DO RESPONSÁVEL */}
       {showPinModal && (
