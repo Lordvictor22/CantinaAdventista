@@ -225,9 +225,9 @@ export default function Cardapio() {
           <div className="brand-logo">
 
             <img
-              src={logoAdventista}
-              alt="Educação Adventista"
-              className="logo-adventista"
+              src={logoGostosoSabor}
+              alt="Gostoso Sabor"
+              className="logo-adventista logo-gostoso"
             />
 
           </div>
@@ -236,7 +236,7 @@ export default function Cardapio() {
           <div className="header-title">
 
             <h1>
-              Cardápio Escolar
+              Gostoso Sabor - Cantina
             </h1>
 
             <p>

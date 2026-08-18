@@ -5,17 +5,16 @@ require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
 const connectionString = process.env.DATABASE_URL;
 
-// Valida se a variável existe e se parece com uma URL do Postgres
 if (!connectionString || !connectionString.startsWith('postgres')) {
   console.error('❌ ERRO CRÍTICO: DATABASE_URL ausente ou inválida nas variáveis de ambiente!');
 }
 
 const pool = new Pool({
   connectionString,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 30,
+  ssl: process.env.NODE_ENV === 'production' 
+    ? { rejectUnauthorized: false } 
+    : false,
+  max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
@@ -30,6 +29,7 @@ pool.on('error', (err) => {
 
 module.exports = {
   query: (text, params) => pool.query(text, params),
+  connect: () => pool.connect(), // Adicionado para resolver o erro do orderController
   getClient: () => pool.connect(),
   pool,
 };

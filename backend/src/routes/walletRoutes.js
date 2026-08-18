@@ -1,76 +1,120 @@
 const express = require('express');
+
 const router = express.Router();
-const db = require('../config/db');
-const walletController = require('../controllers/walletController');
-const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 
-// ==========================================
-// ROTAS EXISTENTES DE SALDO
-// ==========================================
+const {
+  linkStudent,
+  addBalance,
+  getWalletInfo,
+  getParentStudents,
+  getStudentSummary,
+  setDailyLimit,
+  deleteParentAccount, // <-- Adicione esta linha
+  toggleProductBlock,
+  getStatement
+} = require('../controllers/walletController');
 
-// GET /wallet/:id -> Busca saldo do aluno
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await db.query('SELECT id, name, balance FROM users WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    return res.json({ user: result.rows[0] });
-  } catch (err) {
-    console.error('Erro ao buscar saldo:', err);
-    return res.status(500).json({ error: 'Erro interno ao buscar saldo' });
-  }
-});
+const {
+  verifyToken,
+  verifyRole
+} = require('../middlewares/authMiddleware');
 
-// POST /wallet/add-balance -> Adiciona saldo manualmente
-router.post('/add-balance', async (req, res) => {
-  const { student_id, amount } = req.body;
-  if (!student_id || !amount) {
-    return res.status(400).json({ error: 'Informe student_id e amount' });
-  }
-  try {
-    await db.query(
-      'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE id = $2',
-      [amount, student_id]
-    );
-    return res.json({ message: 'Saldo adicionado com sucesso!' });
-  } catch (err) {
-    console.error('Erro ao adicionar saldo:', err);
-    return res.status(500).json({ error: 'Erro interno ao atualizar saldo' });
-  }
-});
 
-// ==========================================
-// ROTAS DO PAINEL DOS PAIS
-// ==========================================
+// =========================================
+// ROTAS DOS PAIS
+// =========================================
 
-router.get(
-  '/parent/students', 
-  verifyToken, 
-  verifyRole('parent', 'admin'), 
-  walletController.getParentStudents
-);
-
-router.get(
-  '/parent/student/:studentId/summary', 
-  verifyToken, 
-  verifyRole('parent', 'admin'), 
-  walletController.getStudentSummary
-);
-
-router.put(
-  '/parent/student/:studentId/daily-limit', 
-  verifyToken, 
-  verifyRole('parent', 'admin'), 
-  walletController.setDailyLimit
-);
-
+// Vincular filho pelo e-mail
 router.post(
-  '/parent/student/:studentId/toggle-block', 
-  verifyToken, 
-  verifyRole('parent', 'admin'), 
-  walletController.toggleProductBlock
+  '/link',
+  verifyToken,
+  verifyRole('parent'),
+  linkStudent
 );
+
+
+// Buscar todos os filhos vinculados ao pai logado
+router.get(
+  '/my-students',
+  verifyToken,
+  verifyRole('parent'),
+  getParentStudents
+);
+
+// Excluir conta do pai logado
+router.delete(
+  '/account',
+  verifyToken,
+  verifyRole('parent'),
+  deleteParentAccount
+);
+
+// =========================================
+// RECARGA
+// =========================================
+
+// Pais podem adicionar saldo aos próprios filhos
+router.post(
+  '/add-balance',
+  verifyToken,
+  verifyRole('parent', 'admin', 'cashier'),
+  addBalance
+);
+
+
+// =========================================
+// RESUMO DO ALUNO
+// =========================================
+
+router.get(
+  '/student/:studentId/summary',
+  verifyToken,
+  verifyRole('parent', 'admin'),
+  getStudentSummary
+);
+
+
+// Definir limite diário
+router.put(
+  '/student/:studentId/daily-limit',
+  verifyToken,
+  verifyRole('parent', 'admin'),
+  setDailyLimit
+);
+
+
+// Bloquear ou desbloquear produtos
+router.post(
+  '/student/:studentId/product-block',
+  verifyToken,
+  verifyRole('parent', 'admin'),
+  toggleProductBlock
+);
+
+
+// =========================================
+// EXTRATO COMPLETO
+// =========================================
+
+router.get(
+  '/student/:studentId/statement',
+  verifyToken,
+  verifyRole('parent', 'student', 'admin', 'cashier'),
+  getStatement
+);
+
+
+// =========================================
+// CARTEIRA E HISTÓRICO RECENTE
+// IMPORTANTE: DEIXAR ESTA ROTA POR ÚLTIMO
+// =========================================
+
+router.get(
+  '/:studentId',
+  verifyToken,
+  verifyRole('parent', 'student', 'admin', 'cashier'),
+  getWalletInfo
+);
+
 
 module.exports = router;

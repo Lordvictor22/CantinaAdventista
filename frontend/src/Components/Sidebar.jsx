@@ -26,7 +26,7 @@ export default function Sidebar() {
         )}
 
         {/* Visível para caixa */}
-        {(user.role === 'cashier' || user.role === 'admin') && (
+        {(user.role === 'cashier' || user.role === 'canteen' || user.role === 'admin') && (
           <li>
             <Link
               to="/cashier"

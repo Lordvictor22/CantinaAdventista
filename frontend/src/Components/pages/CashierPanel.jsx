@@ -1,14 +1,47 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import logoAdventista from '../../assets/logoAdventistaCentenario.png';
 import logoGostosoSabor from '../../assets/GostososaborlogoreduzidoGIMP.png';
 import './Cashier.css';
 
 export default function CashierPanel() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
-  const [pickupDate, setPickupDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  // Guarda a data em ISO (YYYY-MM-DD) mas expõe selects dia/mês/ano para evitar confusão com localizações
+  // Use local date to avoid UTC timezone shifts
+  const getTodayLocalDate = () => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const initialISO = getTodayLocalDate();
+  const [pickupDate, setPickupDate] = useState(initialISO);
+  const [pickupDay, setPickupDay] = useState(() => initialISO.split('-')[2]);
+  const [pickupMonth, setPickupMonth] = useState(() => initialISO.split('-')[1]);
+  const [pickupYear, setPickupYear] = useState(() => initialISO.split('-')[0]);
+
+  // Logout do painel do caixa
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
+  const monthsBR = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNamesBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  const daysInMonth = (year, month) => {
+    return new Date(Number(year), Number(month), 0).getDate();
+  };
+
+  const updatePickupISO = (y,m,d) => {
+    const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    setPickupDate(iso);
+  };
 
   // Guarda o ID do pedido que está sendo confirmado
   const [completingOrderId, setCompletingOrderId] = useState(null);
@@ -22,7 +55,12 @@ export default function CashierPanel() {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [pickupDate]);
+  }, [pickupDate, pickupDay, pickupMonth, pickupYear]);
+
+  // Quando os selects mudam, compõe o ISO e dispara fetch
+  useEffect(() => {
+    updatePickupISO(pickupYear, pickupMonth, pickupDay);
+  }, [pickupDay, pickupMonth, pickupYear]);
 
   const fetchOrders = async () => {
     try {
@@ -85,6 +123,12 @@ export default function CashierPanel() {
           <li>
             <a href="#caixa">Caixa & Atendimento</a>
           </li>
+          <li>
+            <button className="orders-link" onClick={() => navigate('/canteen')} title="Voltar para a Cantina">← Voltar à Cantina</button>
+          </li>
+          <li>
+            <button className="btn-logout-small" onClick={handleLogout} title="Sair do painel">Sair</button>
+          </li>
         </ul>
 
         <span className="portal-badge">
@@ -100,25 +144,17 @@ export default function CashierPanel() {
 
           <div className="brand-logo">
             <img
-              src={logoAdventista}
-              alt="Educação Adventista"
-              className="logo-adventista"
+              src={logoGostosoSabor}
+              alt="Gostoso Sabor"
+              className="logo-adventista logo-gostoso"
             />
           </div>
-
+ 
           <div className="header-title">
             <h1>Caixa & Retirada</h1>
             <p>
               Conferência de recebimentos e entregas ao aluno
             </p>
-          </div>
-
-          <div className="brand-logo">
-            <img
-              src={logoGostosoSabor}
-              alt="Gostoso Sabor Cantina"
-              className="logo-cantina"
-            />
           </div>
 
         </header>
@@ -132,11 +168,26 @@ export default function CashierPanel() {
               Data de Retirada
             </label>
 
-            <input
-              type="date"
-              value={pickupDate}
-              onChange={(e) => setPickupDate(e.target.value)}
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select value={pickupDay} onChange={(e) => setPickupDay(e.target.value)}>
+                {Array.from({ length: daysInMonth(pickupYear, pickupMonth) }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={String(d).padStart(2,'0')}>{String(d).padStart(2,'0')}</option>
+                ))}
+              </select>
+
+              <select value={pickupMonth} onChange={(e) => setPickupMonth(e.target.value)}>
+                {monthsBR.map((m, idx) => (
+                  <option key={m} value={m}>{monthNamesBR[idx]} ({m})</option>
+                ))}
+              </select>
+
+              <select value={pickupYear} onChange={(e) => setPickupYear(e.target.value)}>
+                {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                  <option key={y} value={String(y)}>{String(y)}</option>
+                ))}
+              </select>
+
+            </div>
 
           </div>
 
@@ -201,14 +252,12 @@ export default function CashierPanel() {
                       <li key={idx}>
 
                         <span>
-                          {item.quantity}x {item.name}
+                          {Number(item.quantity) || 1}x {item.product_name || item.name || `Item #${item.product_id || idx}`}
                         </span>
 
                         <strong>
                           R${' '}
-                          {Number(
-                            item.price * item.quantity
-                          ).toFixed(2)}
+                          {Number((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}
                         </strong>
 
                       </li>

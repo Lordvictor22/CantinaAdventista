@@ -635,6 +635,17 @@ body {
   font-weight: 800;
 }
 
+/* Added: compact selects and small adjustments for cashier date picker and order cards */
+.kitchenFilterDate .compact-date-selects { display:flex; gap:8px; align-items:center; }
+.kitchenFilterDate .compact-date-selects select { min-width:60px; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#0f172a; }
+
+.order-card { padding:16px; }
+.order-items-list li { padding:10px 12px; background:#fbfdff; border-radius:8px; }
+.cart-summary { padding-top:14px; border-top:1px solid var(--border); }
+
+@media (max-width:900px) { .kitchenFilterDate .compact-date-selects select { min-width:46px; } }
+
+
 /* =========================================
    NENHUM PEDIDO
 ========================================= */

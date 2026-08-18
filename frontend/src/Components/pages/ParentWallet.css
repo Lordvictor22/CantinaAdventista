@@ -1,101 +1,564 @@
+/* =========================================================
+   PARENT WALLET - PAINEL DOS PAIS
+   ========================================================= */
+
 .wallet-container {
-  max-width: 600px;
-  margin: 30px auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
+  width: 100%;
+  max-width: 1050px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 38px 28px 60px;
+  color: #1e293b;
 }
 
-.wallet-card {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+/* =========================================================
+   CABEÇALHO
+   ========================================================= */
+
+.wallet-container > h2 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: #1e293b;
 }
+
+.wallet-subtitle {
+  margin: 8px 0 28px;
+  color: #64748b;
+  font-size: 15px;
+}
+
+/* =========================================================
+   ALERTAS
+   ========================================================= */
 
 .wallet-alert {
-  padding: 12px;
-  border-radius: 8px;
-  background-color: #eef2ff;
-  font-weight: bold;
-  margin-bottom: 15px;
-  text-align: center;
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid #fecdd3;
+  border-radius: 14px;
+  background: #fff7f8;
+  color: #9f1239;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
 }
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.wallet-card {
+  width: 100%;
+  margin-bottom: 22px;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #e8edf3;
+  border-radius: 20px;
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.03),
+    0 14px 32px rgba(15, 23, 42, 0.05);
+}
+
+.wallet-card h3 {
+  margin: 0 0 22px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.wallet-card h4 {
+  margin: 28px 0 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* =========================================================
+   VINCULAR ALUNO
+   ========================================================= */
 
 .wallet-form {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
 }
 
-.wallet-form input, .custom-recharge input {
+.wallet-form input {
   flex: 1;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border: 1.5px solid #dce3eb;
+  border-radius: 12px;
+  outline: none;
+  background: #fafbfc;
+  color: #1e293b;
+  font-size: 15px;
+  transition: 0.2s ease;
 }
 
-button {
-  padding: 10px 16px;
-  background-color: #2563eb;
-  color: white;
+.wallet-form input::placeholder {
+  color: #94a3b8;
+}
+
+.wallet-form input:focus {
+  border-color: #e94055;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(233, 64, 85, 0.1);
+}
+
+.wallet-form button {
+  height: 52px;
+  min-width: 170px;
+  padding: 0 22px;
   border: none;
-  border-radius: 6px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #e94055, #c52e45);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
-  font-weight: bold;
+  box-shadow: 0 8px 18px rgba(233, 64, 85, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-button:hover {
-  background-color: #1d4ed8;
+.wallet-form button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(233, 64, 85, 0.28);
 }
+
+/* =========================================================
+   CARTEIRA DO ALUNO
+   ========================================================= */
 
 .balance-card {
-  text-align: center;
-  background: #f8fafc;
+  position: relative;
+  overflow: hidden;
 }
 
-.balance-display {
-  font-size: 2.2rem;
-  font-weight: bold;
-  color: #16a34a;
-  margin: 15px 0;
+.balance-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(to bottom, #e94055, #c52e45);
 }
+
+.student-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding: 8px 13px;
+  background: #fff1f3;
+  border: 1px solid #ffe0e5;
+  border-radius: 999px;
+  color: #9f1239;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* SALDO */
+
+.balance-display {
+  width: 100%;
+  padding: 24px;
+  margin: 8px 0 10px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1e293b, #334155);
+  color: #ffffff;
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+/* =========================================================
+   RECARGA RÁPIDA
+   ========================================================= */
 
 .quick-buttons {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .quick-buttons button {
-  background-color: #16a34a;
+  flex: 1;
+  min-width: 150px;
+  height: 48px;
+  border: 1.5px solid #f0cbd1;
+  border-radius: 12px;
+  background: #fff8f9;
+  color: #c52e45;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.quick-buttons button:hover {
-  background-color: #15803d;
+.quick-buttons button:hover:not(:disabled) {
+  background: #e94055;
+  border-color: #e94055;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(233, 64, 85, 0.2);
 }
+
+/* =========================================================
+   RECARGA PERSONALIZADA
+   ========================================================= */
 
 .custom-recharge {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 16px;
 }
+
+.custom-recharge input {
+  flex: 1;
+  height: 52px;
+  padding: 0 16px;
+  border: 1.5px solid #dce3eb;
+  border-radius: 12px;
+  outline: none;
+  background: #fafbfc;
+  color: #1e293b;
+  font-size: 15px;
+  transition: 0.2s ease;
+}
+
+.custom-recharge input:focus {
+  background: #ffffff;
+  border-color: #e94055;
+  box-shadow: 0 0 0 4px rgba(233, 64, 85, 0.1);
+}
+
+.custom-recharge button {
+  min-width: 150px;
+  height: 52px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-recharge button:hover:not(:disabled) {
+  background: #334155;
+  transform: translateY(-2px);
+}
+
+/* =========================================================
+   HISTÓRICO
+   ========================================================= */
 
 .history-list {
   list-style: none;
+  margin: 0;
   padding: 0;
 }
 
 .history-list li {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #f1f5f9;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #edf0f4;
+  color: #475569;
+  font-size: 14px;
 }
 
-.history-list .deposit strong {
+.history-list li:last-child {
+  border-bottom: none;
+}
+
+.history-list li span {
+  flex: 1;
+}
+
+.history-list li strong {
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.history-list li.deposit strong {
   color: #16a34a;
 }
 
-.history-list .purchase strong {
-  color: #dc2626;
+.history-list li.purchase strong {
+  color: #e94055;
+}
+
+.empty-history {
+  margin: 0;
+  padding: 28px;
+  text-align: center;
+  border: 1px dashed #dce3eb;
+  border-radius: 14px;
+  color: #94a3b8;
+  background: #fafbfc;
+}
+
+/* =========================================================
+   BOTÕES DESABILITADOS
+   ========================================================= */
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* =========================================================
+   RESPONSIVIDADE
+   ========================================================= */
+
+@media (max-width: 700px) {
+  .wallet-container {
+    padding: 24px 16px 45px;
+  }
+
+  .wallet-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .wallet-form,
+  .custom-recharge {
+    flex-direction: column;
+  }
+
+  .wallet-form button,
+  .custom-recharge button {
+    width: 100%;
+  }
+
+  .quick-buttons {
+    flex-direction: column;
+  }
+
+  .quick-buttons button {
+    width: 100%;
+  }
+
+  .history-list li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .balance-display {
+    padding: 20px;
+  }
+}
+
+/* ========================================
+   TOPO DO PAINEL
+======================================== */
+
+.wallet-topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 28px;
+}
+
+.back-button,
+.logout-button {
+  border: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 11px 18px;
+  border-radius: 12px;
+  transition: all 0.25s ease;
+}
+
+/* Botão voltar */
+
+.back-button {
+  background: #ffffff;
+  color: #1f5e3b;
+  border: 1px solid #d7e5db;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.05);
+}
+
+.back-button:hover {
+  background: #f2f8f4;
+  border-color: #9fc9aa;
+  transform: translateX(-3px);
+}
+
+/* Botão sair */
+
+.logout-button {
+  background: #fff1f1;
+  color: #c0392b;
+  border: 1px solid #f3c5c1;
+}
+
+.logout-button:hover {
+  background: #e74c3c;
+  color: white;
+  border-color: #e74c3c;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.2);
+}
+
+/* ========================================
+   CABEÇALHO
+======================================== */
+
+.wallet-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.wallet-header h2 {
+  margin: 0;
+}
+
+.wallet-icon {
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e8f5ec, #d6ebdc);
+}
+
+/* ========================================
+   RESPONSIVIDADE
+======================================== */
+
+@media (max-width: 500px) {
+  .wallet-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .back-button,
+  .logout-button {
+    width: 100%;
+  }
+
+  .wallet-header {
+    align-items: flex-start;
+  }
+
+  .wallet-icon {
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+  }
+}
+/* Overlay escuro no fundo */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Caixa de diálogo */
+.modal-content {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 1.15rem;
+}
+
+.modal-icon {
+  font-size: 1.5rem;
+}
+
+.modal-body {
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+/* Botões do modal */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-cancel {
+  background: #f1f3f5;
+  color: #495057;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-cancel:hover {
+  background: #e9ecef;
+}
+
+.btn-confirm-delete {
+  background: #d32f2f;
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-confirm-delete:hover {
+  background: #b71c1c;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }

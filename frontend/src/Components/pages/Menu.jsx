@@ -10,9 +10,21 @@ export default function StudentMenu() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [studentName, setStudentName] = useState('');
-  const [pickupDate, setPickupDate] = useState('');
+  const todayISO = new Date().toISOString().split('T')[0];
+  const [pickupDate, setPickupDate] = useState(todayISO);
   const [pickupTime, setPickupTime] = useState('1º Recreio (09:30)');
   const [loading, setLoading] = useState(true);
+  const todayParts = todayISO.split('-');
+  const [pickupYear, setPickupYear] = useState(todayParts[0]);
+  const [pickupMonth, setPickupMonth] = useState(todayParts[1]);
+  const [pickupDay, setPickupDay] = useState(todayParts[2]);
+  const monthsBR = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNamesBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const daysInMonth = (year, month) => new Date(Number(year), Number(month), 0).getDate();
+
+  useEffect(() => {
+    setPickupDate(`${pickupYear}-${pickupMonth}-${pickupDay}`);
+  }, [pickupDay, pickupMonth, pickupYear]);
 
   useEffect(() => {
     fetchProducts();
@@ -75,12 +87,12 @@ export default function StudentMenu() {
     <div className="menu-container">
       {/* topo com as duas logos */}
       <header className="menu-header">
-        <img src={logoAdventista} alt="Educação Adventista" className="logo-header" />
+        {/* Primary brand: Gostoso Sabor */}
+        <img src={logoGostosoSabor} alt="Gostoso Sabor" className="logo-header" />
         <div className="header-title">
-          <h1>Cardápio Escolar</h1>
-          <p>Pedidos Online - Cantina Escolar</p>
+          <h1>Gostoso Sabor - Cantina</h1>
+          <p>Pedidos Online</p>
         </div>
-        <img src={logoGostosoSabor} alt="Gostoso Sabor Cantina" className="logo-header" />
       </header>
 
       {/* Dados do Aluno */}
@@ -96,11 +108,25 @@ export default function StudentMenu() {
         </div>
         <div className="form-group">
           <label>Data de Retirada</label>
-          <input
-            type="date"
-            value={pickupDate}
-            onChange={(e) => setPickupDate(e.target.value)}
-          />
+        <div className="compact-date-selects">
+            <select value={pickupDay} onChange={(e) => setPickupDay(e.target.value)}>
+              {Array.from({ length: daysInMonth(pickupYear, pickupMonth) }, (_, i) => i + 1).map(d => (
+                <option key={d} value={String(d).padStart(2,'0')}>{String(d).padStart(2,'0')}</option>
+              ))}
+            </select>
+
+            <select value={pickupMonth} onChange={(e) => setPickupMonth(e.target.value)}>
+              {monthsBR.map((m, idx) => (
+                <option key={m} value={m}>{monthNamesBR[idx]} ({m})</option>
+              ))}
+            </select>
+
+            <select value={pickupYear} onChange={(e) => setPickupYear(e.target.value)}>
+              {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                <option key={y} value={String(y)}>{String(y)}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="form-group">
           <label>Horário / Recreio</label>

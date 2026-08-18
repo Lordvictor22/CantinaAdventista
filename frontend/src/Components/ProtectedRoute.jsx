@@ -1,21 +1,39 @@
 import { Navigate } from 'react-router-dom';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  // Pega as informações do usuário salvo no login
   const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : null;
 
-  // 1. Se não estiver logado, redireciona para o login
+  let user = null;
+
+  try {
+    user = storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    localStorage.removeItem('user');
+    return <Navigate to="/login" replace />;
+  }
+
+  // Não está logado
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. Se a rota exige um perfil específico e o usuário não tem esse perfil
+  // Não tem permissão
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // AJUSTADO: Redireciona o aluno para a rota correta dele (/student)
-    return <Navigate to="/student" replace />;
+    const routesByRole = {
+      student: '/student',
+      parent: '/parent',
+      cashier: '/cashier',
+      canteen: '/canteen',
+      admin: '/admin'
+    };
+
+    return (
+      <Navigate
+        to={routesByRole[user.role] || '/login'}
+        replace
+      />
+    );
   }
 
-  // 3. Se estiver tudo OK, exibe a página normalmente
   return children;
 }

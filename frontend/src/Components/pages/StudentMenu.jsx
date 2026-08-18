@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import logoAdventista from '../../assets/logoAdventistaCentenario.png';
@@ -7,31 +7,52 @@ import './MenuPage.css';
 
 const PIX_KEY = "suachavepix@email.com"; 
 
-// Função auxiliar para data local no formato YYYY-MM-DD (evita bug de UTC após 21h)
-const getTodayLocalDate = () => {
+// Dias da semana disponíveis para escolha
+const WEEK_DAYS = [
+  { id: 'segunda', label: 'Segunda', dayIndex: 1 },
+  { id: 'terca',   label: 'Terça',   dayIndex: 2 },
+  { id: 'quarta',  label: 'Quarta',  dayIndex: 3 },
+  { id: 'quinta',  label: 'Quinta',  dayIndex: 4 },
+  { id: 'sexta',   label: 'Sexta',   dayIndex: 5 }
+];
+
+// Identifica o dia da semana atual (0 = Dom, 1 = Seg, ..., 6 = Sáb)
+const getCurrentDayOfWeek = () => {
   const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const dayIndex = today.getDay();
+  const currentDay = WEEK_DAYS.find(day => day.dayIndex === dayIndex);
+  return currentDay ? currentDay.id : 'segunda';
 };
 
-// Aplica a máscara DD/MM/AAAA enquanto digita
-const maskDateBR = (value) => {
-  return value
-    .replace(/\D/g, '') // Remove o que não for número
-    .replace(/(\d{2})(\d)/, '$1/$2') // Adiciona a primeira barra
-    .replace(/(\d{2})\/(\d{2})(\d)/, '$1/$2/$3') // Adiciona a segunda barra
-    .replace(/(\d{2}\/\d{2}\/\d{4})\d+?$/, '$1'); // Limita a 10 caracteres
-};
-
-// Converte DD/MM/AAAA para YYYY-MM-DD para salvar no backend
-const convertBRToISO = (brDate) => {
-  if (brDate.length === 10) {
-    const [day, month, year] = brDate.split('/');
+// Calcula a data YYYY-MM-DD a partir do dia da semana selecionado
+const getISOFromDayOfWeek = (selectedDayId) => {
+  const today = new Date();
+  const currentDayIndex = today.getDay();
+  
+  const targetDay = WEEK_DAYS.find(day => day.id === selectedDayId);
+  if (!targetDay) {
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
-  return brDate;
+
+  let diff = targetDay.dayIndex - currentDayIndex;
+
+  if (diff < 0 || currentDayIndex === 0 || currentDayIndex === 6) {
+    if (currentDayIndex === 0) diff += 1;
+    else if (currentDayIndex === 6) diff += 2;
+    else diff += 7;
+  }
+
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + diff);
+
+  const year = targetDate.getFullYear();
+  const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const day = String(targetDate.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 };
 
 export default function StudentMenu() {
@@ -39,7 +60,7 @@ export default function StudentMenu() {
 
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [isCartModalOpen, setIsCartModalOpen] = useState(false); // MOVIDO PARA DENTRO DO COMPONENTE
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [myOrders, setMyOrders] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [studentName, setStudentName] = useState('');
@@ -55,13 +76,22 @@ export default function StudentMenu() {
   // ESTADOS DA CARTEIRA / SALDO
   const [balance, setBalance] = useState(0);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  // Extrato (Statement)
+  const [showStatementModal, setShowStatementModal] = useState(false);
+  const [statement, setStatement] = useState([]);
+  const [statementLoading, setStatementLoading] = useState(false);
 
   // ESTADOS DO PAINEL DO RESPONSÁVEL (CONTROLE PARENTAL)
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [showParentModal, setShowParentModal] = useState(false);
 
-  // INICIALIZAÇÃO IMEDIATA DO CACHE LOCAL DE BLOQUEIOS
+  // DELETE ACCOUNT (DUAS CONFIRMAÇÕES)
+  const [showDeleteModalStep1, setShowDeleteModalStep1] = useState(false);
+  const [showDeleteModalStep2, setShowDeleteModalStep2] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+
+  // CACHE LOCAL DE BLOQUEIOS
   const [blockedProductIds, setBlockedProductIds] = useState(() => {
     try {
       const savedUser = localStorage.getItem('user');
@@ -78,20 +108,15 @@ export default function StudentMenu() {
     return [];
   });
 
-  // Converte datas para o formato brasileiro DD/MM/YYYY com segurança
   const formatDateBR = (dateString) => {
     if (!dateString) return '';
-
-    // Remove horário caso venha em formato ISO (T) ou com espaço
     const cleanDate = String(dateString).split('T')[0].split(' ')[0];
 
-    // Se já estiver no formato YYYY-MM-DD (ex: 2026-08-14)
     if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
       const [year, month, day] = cleanDate.split('-');
       return `${day}/${month}/${year}`;
     }
 
-    // Se já estiver no formato DD/MM/YYYY (ex: 14/08/2026)
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleanDate)) {
       return cleanDate;
     }
@@ -99,12 +124,14 @@ export default function StudentMenu() {
     return cleanDate;
   };
 
-  // ESTADOS DE DATA (pickupDate salva no backend | dateInputText exibe na tela)
-  const [pickupDate, setPickupDate] = useState(getTodayLocalDate());
-  const [dateInputText, setDateInputText] = useState(() => {
-    const [y, m, d] = getTodayLocalDate().split('-');
-    return `${d}/${m}/${y}`;
-  });
+  // ESTADOS DA RETIRADA (Dia da Semana e Turno)
+  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState(getCurrentDayOfWeek());
+  const [pickupDate, setPickupDate] = useState(() => getISOFromDayOfWeek(getCurrentDayOfWeek()));
+
+  // Atualiza a data ISO enviada ao backend sempre que o botão do dia da semana mudar
+  useEffect(() => {
+    setPickupDate(getISOFromDayOfWeek(selectedDayOfWeek));
+  }, [selectedDayOfWeek]);
 
   const [pickupTime, setPickupTime] = useState('Manhã');
   const [loading, setLoading] = useState(false);
@@ -113,66 +140,18 @@ export default function StudentMenu() {
 
   const categories = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces'];
 
-  // CARREGAMENTO INICIAL DO USUÁRIO E DADOS
-  useEffect(() => {
-    let currentId = null;
-    const savedUser = localStorage.getItem('user');
-
-    if (savedUser) {
-      try {
-        const user = JSON.parse(savedUser);
-        setStudentName(user.name || '');
-        setStudentEmail(user.email || '');
-        setStudentId(user.id);
-        currentId = user.id;
-
-        const savedAvatar = localStorage.getItem(`userAvatar_${user.id}`);
-        if (savedAvatar) {
-          setAvatarUrl(savedAvatar);
-        } else if (user.avatar) {
-          setAvatarUrl(user.avatar);
-        }
-
-        loadStudentBalance(user.id);
-        loadBlockedProducts(user.id);
-      } catch (err) {
-        console.error('Erro ao ler usuário local:', err);
-      }
-    }
-
-    loadProducts();
-    loadStudentOrders();
-
-    const handleClickOutside = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setShowUserMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-
-    const interval = setInterval(() => {
-      loadProducts();
-      loadStudentOrders();
-      if (currentId) {
-        loadStudentBalance(currentId);
-        loadBlockedProducts(currentId);
-      }
-    }, 30000);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      clearInterval(interval);
-    };
-  }, []);
-
   const loadStudentBalance = async (idToUse) => {
-    const id = idToUse || studentId;
-    if (!id) return;
+    const targetId = idToUse || studentId;
+    if (!targetId) return;
+
     try {
-      const res = await api.get(`/wallet/${id}`);
-      setBalance(res.data.user?.balance || 0);
+      const res = await api.get(`/wallet/${targetId}`);
+      const rawBalance = res.data?.balance ?? res.data?.user?.balance ?? 0;
+      const finalBalance = parseFloat(rawBalance) || 0;
+
+      setBalance(finalBalance);
     } catch (err) {
-      console.error('Erro ao buscar saldo:', err);
+      console.error('Erro ao carregar saldo:', err);
     }
   };
 
@@ -186,31 +165,37 @@ export default function StudentMenu() {
       try {
         localBlocked = JSON.parse(savedBlocked).map(Number);
         setBlockedProductIds(localBlocked);
-      } catch (e) {}
+      } catch (e) {
+        console.error('Erro ao converter bloqueios salvos localmente:', e);
+      }
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get(`/parent/blocked/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get(`/parent/blocked/${id}`);
 
       if (Array.isArray(res.data) && res.data.length > 0) {
-        const normalizedIds = res.data.map((item) => {
-          const rawId = typeof item === 'object' && item !== null
-            ? (item.productId || item.product_id || item.id)
-            : item;
-          return Number(rawId);
-        }).filter((n) => !isNaN(n));
+        const normalizedIds = res.data
+          .map((item) => {
+            const rawId =
+              typeof item === 'object' && item !== null
+                ? item.productId || item.product_id || item.id
+                : item;
+            return Number(rawId);
+          })
+          .filter((n) => !isNaN(n));
 
         setBlockedProductIds(normalizedIds);
         localStorage.setItem(`blockedProducts_${id}`, JSON.stringify(normalizedIds));
-        
-        // Remove itens recém-bloqueados do carrinho
-        setCart((prevCart) => prevCart.filter((item) => !normalizedIds.includes(Number(item.id))));
+        setCart((prevCart) =>
+          prevCart.filter((item) => !normalizedIds.includes(Number(item.id)))
+        );
+      } else {
+        setBlockedProductIds(localBlocked);
       }
     } catch (err) {
-      console.warn('Backend offline ou em sincronização. Mantendo bloqueios salvos no dispositivo.');
+      // Trata suavemente o 404 ou instabilidade na rota /parent/blocked/ Sem interromper a aplicação
+      console.warn('Serviço de bloqueios indisponível ou rota não configurada. Mantendo lista local.');
+      setBlockedProductIds(localBlocked);
     }
   };
 
@@ -224,24 +209,81 @@ export default function StudentMenu() {
   };
 
   const loadStudentOrders = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setMyOrders([]);
+      return;
+    }
+
     setLoadingOrders(true);
+
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/orders/my-orders', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        params: { _: Date.now() }
-      });
-      setMyOrders(res.data || []);
+      const res = await api.get('/orders/user');
+      setMyOrders(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error('Erro ao buscar histórico de pedidos:', err);
+      console.error('Erro ao carregar pedidos:', err);
+      setMyOrders([]);
     } finally {
       setLoadingOrders(false);
     }
   };
+
+  useEffect(() => {
+    let currentUserId = null;
+    const savedUser = localStorage.getItem('user');
+
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        currentUserId = user.id;
+        setStudentName(user.name || '');
+        setStudentEmail(user.email || '');
+        setStudentId(user.id);
+
+        if (user.balance !== undefined) {
+          setBalance(Number(user.balance));
+        }
+
+        const savedAvatar = localStorage.getItem(`userAvatar_${user.id}`);
+        if (savedAvatar) {
+          setAvatarUrl(savedAvatar);
+        } else if (user.avatar) {
+          setAvatarUrl(user.avatar);
+        }
+      } catch (err) {
+        console.error('Erro ao ler usuário do localStorage:', err);
+      }
+    }
+
+    loadProducts();
+    loadStudentOrders();
+
+    if (currentUserId) {
+      loadStudentBalance(currentUserId);
+      loadBlockedProducts(currentUserId);
+    }
+
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+
+    const interval = setInterval(() => {
+      loadProducts();
+      loadStudentOrders();
+      const activeId = currentUserId || JSON.parse(localStorage.getItem('user'))?.id;
+      if (activeId) {
+        loadStudentBalance(activeId);
+      }
+    }, 10000);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      clearInterval(interval);
+    };
+  }, []);
 
   const showToast = (message, type = 'success') => {
     const id = `${Date.now()}_${Math.random()}`;
@@ -262,10 +304,7 @@ export default function StudentMenu() {
           localStorage.setItem(`userAvatar_${studentId}`, imageBase64);
         }
         try {
-          const token = localStorage.getItem('token');
-          await api.put('/auth/avatar', { userId: studentId, avatar: imageBase64 }, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.put('/auth/avatar', { userId: studentId, avatar: imageBase64 });
           showToast('Foto de perfil atualizada!');
         } catch (err) {
           showToast('Foto salva localmente.', 'warning');
@@ -279,6 +318,13 @@ export default function StudentMenu() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  const handleParentAccess = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
     navigate('/login');
   };
 
@@ -312,7 +358,6 @@ export default function StudentMenu() {
     }
 
     try {
-      const token = localStorage.getItem('token');
       await api.post(
         '/parent/toggle-block',
         {
@@ -320,8 +365,7 @@ export default function StudentMenu() {
           productId: numId,
           student_id: Number(studentId),
           product_id: numId
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+        }
       );
       showToast(isCurrentlyBlocked ? 'Alimento liberado!' : 'Alimento bloqueado para o aluno.');
     } catch (err) {
@@ -372,11 +416,11 @@ export default function StudentMenu() {
   const cartTotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const cartQuantity = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-  const formatMoney = (value) => {
-    return Number(value || 0).toLocaleString('pt-BR', {
+  const formatMoney = (val) => {
+    return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    });
+    }).format(Number(val) || 0);
   };
 
   const visibleProducts = products.filter(
@@ -401,46 +445,223 @@ export default function StudentMenu() {
       return;
     }
 
+    if (!pickupDate || !pickupTime) {
+      showToast('Selecione o dia da semana e o turno para retirada.', 'error');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const token = localStorage.getItem('token');
-      await api.post(
-        '/orders',
-        {
-          student_name: studentName,
-          pickup_date: pickupDate,
-          pickup_time: pickupTime,
-          items: cart.map((item) => ({
-            id: item.id,
-            quantity: item.quantity
-          }))
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+
+      const dayMap = {
+        'Segunda': 1,
+        'Terça': 2,
+        'Quarta': 3,
+        'Quinta': 4,
+        'Sexta': 5,
+        'Sábado': 6,
+        'Domingo': 0
+      };
+
+      let formattedDate = pickupDate;
+
+      if (dayMap[pickupDate] !== undefined) {
+        const today = new Date();
+        const targetDay = dayMap[pickupDate];
+        let diff = targetDay - today.getDay();
+        if (diff < 0) diff += 7;
+        
+        const nextDate = new Date();
+        nextDate.setDate(today.getDate() + diff);
+        formattedDate = nextDate.toISOString().split('T')[0];
+      }
+
+      const payload = {
+        student_name: studentName,
+        pickup_date: formattedDate,
+        pickup_time: pickupTime,
+        items: cart.map(item => ({
+          id: Number(item.id || item.product_id),
+          quantity: Number(item.quantity || 1)
+        }))
+      };
+
+      console.log('Enviando pedido para API:', payload);
+
+      await api.post('/orders', payload, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
       showToast('Pedido agendado com sucesso! 🎉');
       setCart([]);
-      loadStudentOrders();
-      loadStudentBalance(studentId);
+
+      const activeId = studentId || JSON.parse(localStorage.getItem('user'))?.id;
+
+      if (activeId) {
+        await Promise.all([
+          loadStudentOrders ? loadStudentOrders() : Promise.resolve(),
+          loadStudentBalance ? loadStudentBalance(activeId) : Promise.resolve()
+        ]);
+      }
     } catch (err) {
-      showToast(
-        err.response?.data?.error || 'Erro ao processar o pedido.',
-        'error'
-      );
+      console.error('Erro detalhado da API ao criar pedido:', err.response?.data || err.message);
+
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Erro ao processar o pedido.';
+
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopyPixKey = () => {
-    navigator.clipboard.writeText(PIX_KEY);
-    showToast('Chave PIX copiada para a área de transferência!');
+    if (typeof PIX_KEY !== 'undefined' && PIX_KEY) {
+      navigator.clipboard.writeText(PIX_KEY);
+      showToast('Chave PIX copiada para a área de transferência!');
+    } else {
+      showToast('Chave PIX não configurada.', 'error');
+    }
+  };
+
+  const loadStatement = async (limit = 100, offset = 0) => {
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const id = studentId || userObj.id || userObj.student_id;
+
+    if (!id) {
+      console.error('❌ ID do usuário não encontrado para carregar extrato.');
+      showToast('Não foi possível identificar o usuário.', 'error');
+      return;
+    }
+
+    setStatementLoading(true);
+    setStatement([]);
+
+    try {
+      console.log('📄 Carregando extrato do aluno:', id);
+
+      const res = await api.get(
+        `/wallet/student/${id}/statement?limit=${limit}&offset=${offset}`
+      );
+
+      console.log('📄 Extrato recebido:', res.data);
+
+      const transactions = Array.isArray(res.data?.transactions)
+        ? res.data.transactions
+        : [];
+
+      setStatement(transactions);
+
+    } catch (err) {
+      console.error(
+        '❌ Erro ao carregar extrato:',
+        err.response?.status,
+        err.response?.data || err.message
+      );
+
+      showToast(
+        err.response?.data?.error ||
+        'Não foi possível carregar o extrato.',
+        'error'
+      );
+
+      setStatement([]);
+    } finally {
+      setStatementLoading(false);
+    }
+  };
+
+  const exportStatementCSV = () => {
+    if (!statement || statement.length === 0) {
+      showToast('Extrato vazio.', 'warning');
+      return;
+    }
+
+    const headers = ['Data', 'Tipo', 'Descrição', 'Valor'];
+
+    const rows = statement.map((s) => [
+      formatDateBR(s.created_at),
+
+      s.type === 'DEPOSIT'
+        ? 'Recarga'
+        : s.type === 'PURCHASE'
+          ? 'Compra'
+          : s.type,
+
+      (s.description || 'Sem descrição')
+        .replace(/\n/g, ' ')
+        .replace(/,/g, ' '),
+
+      Number(s.amount).toFixed(2)
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.join(','))
+      .join('\n');
+
+    const blob = new Blob(
+      ['\uFEFF' + csvContent],
+      { type: 'text/csv;charset=utf-8;' }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `extrato_${studentId || 'user'}.csv`;
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+
+    showToast('Extrato exportado com sucesso!');
+  };
+
+  const requestDeleteAccount = () => {
+    setShowDeleteModalStep1(true);
+  };
+
+  const proceedToFinalDelete = () => {
+    setShowDeleteModalStep1(false);
+    setShowDeleteModalStep2(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    const expected = savedUser?.email?.toLowerCase?.() || '';
+    if ((deleteConfirmInput || '').trim().toLowerCase() !== expected) {
+      showToast('Por favor digite o endereço de e-mail para confirmar.', 'error');
+      return;
+    }
+
+    try {
+      await api.delete('/auth/delete');
+      showToast('Conta excluída. Seus dados pessoais foram removidos onde permitido.', 'success');
+
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+
+      navigate('/login');
+    } catch (err) {
+      console.error('Erro ao excluir conta:', err);
+      showToast(err.response?.data?.error || 'Erro ao excluir conta.', 'error');
+    } finally {
+      setShowDeleteModalStep2(false);
+      setDeleteConfirmInput('');
+    }
   };
 
   return (
     <div className="page-wrapper">
-      {/* TOASTS FIXADOS NO TOPO */}
+      {/* TOASTS */}
       <div className="toast-container">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast ${toast.type}`}>
@@ -461,28 +682,16 @@ export default function StudentMenu() {
       />
 
       {/* HEADER */}
-      <header className="adventist-header">
+      <header className="adventist-header" style={{background: 'linear-gradient(90deg, #E94055, #C52E45)', color: '#ffffff'}}>
         <div className="brand-section">
-          <img src={logoAdventista} alt="Educação Adventista" className="logo-adventista-header" />
+          <img src={logoGostosoSabor} alt="Gostoso Sabor" className="logo-adventista-header logo-gostoso" />
           <div className="school-info">
-            <span className="school-name">Colégio Adventista</span>
-            <span className="school-location">Cantina Escolar</span>
+            <span className="school-name">Gostoso Sabor</span>
+            <span className="school-location">Cantina</span>
           </div>
         </div>
-
+ 
         <nav className="header-navigation">
-          <div className="cantina-badge-logo">
-            <img src={logoGostosoSabor} alt="Gostoso Sabor" />
-          </div>
-
-          <button
-            type="button"
-            className="btn-header-parent"
-            onClick={() => setShowPinModal(true)}
-          >
-            🛡️ Área dos Pais
-          </button>
-
           <div className="user-profile-menu" ref={userMenuRef}>
             <button
               type="button"
@@ -520,13 +729,21 @@ export default function StudentMenu() {
                   className="user-dropdown-item highlight"
                   onClick={() => {
                     setShowUserMenu(false);
-                    setShowPinModal(true);
+                    handleLogout();
                   }}
                 >
-                  👨‍👩‍👧 Área do Responsável
+                  🔐 Acessar conta do responsável
                 </button>
 
                 <div className="user-dropdown-divider" />
+
+                <button
+                  type="button"
+                  className="user-dropdown-item"
+                  onClick={() => { setShowUserMenu(false); setShowDeleteModalStep1(true); }}
+                >
+                  ❌ Excluir minha conta
+                </button>
 
                 <button
                   type="button"
@@ -541,7 +758,7 @@ export default function StudentMenu() {
         </nav>
       </header>
 
-      {/* CONTEÚDO PRINCIPAL */}
+     {/* CONTEÚDO PRINCIPAL */}
       <main className="menu-container">
         <div className="main-content">
           <section className="welcome-section">
@@ -552,27 +769,39 @@ export default function StudentMenu() {
             </div>
 
             <div className="welcome-widgets">
-              {/* CARD DE SALDO */}
+              {/* CARD DE SALDO REAL */}
               <div className="wallet-badge">
                 <div>
                   <span className="wallet-label">SEU SALDO</span>
                   <strong className="wallet-amount">{formatMoney(balance)}</strong>
                 </div>
-                <button
-                  type="button"
-                  className="btn-add-balance"
-                  onClick={() => setShowRechargeModal(true)}
-                >
-                  ➕ Adicionar Saldo
-                </button>
+                <div className="wallet-actions">
+                  <button
+                    type="button"
+                    className="btn-add-balance"
+                    onClick={() => setShowRechargeModal(true)}
+                  >
+                    ➕ Adicionar Saldo
+                  </button>
+
+                  <button 
+                    className="btn-statement"
+                    onClick={() => {
+                      setShowStatementModal(true);
+                      loadStatement();
+                    }}
+                  >
+                    📄 Ver Extrato
+                  </button>
+                </div>
               </div>
 
-              {/* CARD DE ATALHO DIRETO PARA OS PAIS */}
+              {/* CONTROLE PARENTAL */}
               <div 
                 className="parent-quick-card"
                 onClick={() => setShowPinModal(true)}
               >
-                <span className="parent-card-icon">🛡️</span>
+                <span className="parent-card-icon">🛍️</span>
                 <div>
                   <strong className="parent-card-title">Controle dos Pais</strong>
                   <span className="parent-card-subtitle">Bloquear alimentos</span>
@@ -585,31 +814,35 @@ export default function StudentMenu() {
             <div className="schedule-title">
               <div>
                 <h2>Quando você vai retirar?</h2>
-                <p>Escolha o dia e o turno.</p>
+                <p>Escolha o dia da semana e o turno.</p>
               </div>
             </div>
 
             <div className="schedule-fields">
               <div className="input-group">
-                <label htmlFor="pickupDate">DATA</label>
-                
-                {/* INPUT COM MÁSCARA PT-BR QUE FORÇA DD/MM/AAAA */}
-                <input
-                  id="pickupDate"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="DD/MM/AAAA"
-                  maxLength="10"
-                  value={dateInputText}
-                  onChange={(e) => {
-                    const masked = maskDateBR(e.target.value);
-                    setDateInputText(masked);
-                    
-                    if (masked.length === 10) {
-                      setPickupDate(convertBRToISO(masked));
-                    }
-                  }}
-                />
+                <label>DIA DA SEMANA</label>
+                <div className="week-days-selector" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {WEEK_DAYS.map((day) => (
+                    <button
+                      key={day.id}
+                      type="button"
+                      className={`day-btn ${selectedDayOfWeek === day.id ? 'active' : ''}`}
+                      onClick={() => setSelectedDayOfWeek(day.id)}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: selectedDayOfWeek === day.id ? '#E94055' : '#ffffff',
+                        color: selectedDayOfWeek === day.id ? '#ffffff' : '#334155',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="input-group">
@@ -703,6 +936,7 @@ export default function StudentMenu() {
         </div>
 
         <aside id="pedido" className="sidebar">
+          {/* BLOCO 1: NOVO PEDIDO / CARRINHO */}
           <div className="cart-card">
             <div className="cart-header">
               <h2>Novo Pedido</h2>
@@ -739,14 +973,15 @@ export default function StudentMenu() {
             )}
           </div>
 
+          {/* BLOCO 2: MEUS PEDIDOS REALIZADOS */}
           <div className="history-card">
             <div className="cart-header">
               <h2>Meus Pedidos Realizados</h2>
             </div>
 
             {loadingOrders ? (
-              <p>Carregando histórico...</p>
-            ) : myOrders.length === 0 ? (
+              <p className="empty-cart-msg">Carregando histórico...</p>
+            ) : !myOrders || myOrders.length === 0 ? (
               <p className="empty-cart-msg">Você ainda não realizou nenhum pedido.</p>
             ) : (
               <div className="history-list">
@@ -754,29 +989,35 @@ export default function StudentMenu() {
                   <div key={order.id} className="history-item-card">
                     <div className="history-item-header">
                       <strong>Pedido #{order.id}</strong>
-                      <span className={`status-tag ${order.status?.toLowerCase() || 'pendente'}`}>
-                        {order.status || 'Confirmado'}
+                      <span className={`status-tag ${order.status?.toLowerCase() || 'pago'}`}>
+                        {order.status || 'pago'}
                       </span>
                     </div>
                     
                     <p className="history-date">
-                      Retirada: {formatDateBR(order.pickup_date)} às {order.pickup_time}
+                      Retirada: {formatDateBR ? formatDateBR(order.pickup_date) : order.pickup_date} {order.pickup_time ? `• ${order.pickup_time}` : ''}
                     </p>
 
                     <ul className="history-products">
-                      {order.items?.map((item, idx) => (
-                        <li key={idx} className="history-product-line">
-                          <span>{item.quantity}x {item.name || item.product_name || `Produto #${item.product_id}`}</span>
-                          <span>{formatMoney(item.price || item.unit_price || 0)}</span>
+                      {order.items && order.items.length > 0 ? (
+                        order.items.map((item, idx) => (
+                          <li key={item.id || idx} className="history-product-line">
+                            <span>{item.quantity}x {item.product_name || item.name || `Item #${item.product_id}`}</span>
+                            <span>{formatMoney(Number(item.price || 0))}</span>
+                          </li>
+                        ))
+                      ) : (
+                        <li className="history-product-line">
+                          <span>Itens indisponíveis</span>
                         </li>
-                      ))}
+                      )}
                     </ul>
 
                     <hr className="history-divider" />
 
                     <div className="history-total-row">
                       <span>Total:</span>
-                      <span>{formatMoney(order.total_amount || order.total || order.items?.reduce((acc, i) => acc + ((i.price || i.unit_price || 0) * i.quantity), 0))}</span>
+                      <strong>{formatMoney(Number(order.total || order.total_amount || 0))}</strong>
                     </div>
                   </div>
                 ))}
@@ -786,7 +1027,7 @@ export default function StudentMenu() {
         </aside>
       </main>
 
-      {/* BARRA FLUTUANTE DE CARRINHO NO MOBILE */}
+      {/* BARRA FLUTUANTE MOBILE */}
       {cart.length > 0 && (
         <div className="mobile-floating-cart">
           <div className="floating-cart-info">
@@ -806,7 +1047,7 @@ export default function StudentMenu() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DO PEDIDO */}
+      {/* MODAL CARRINHO */}
       {isCartModalOpen && (
         <div className="cart-modal-overlay" onClick={() => setIsCartModalOpen(false)}>
           <div className="cart-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -822,17 +1063,28 @@ export default function StudentMenu() {
             </div>
 
             <div className="cart-modal-body">
-              {cart.map((item) => (
-                <div key={item.id} className="cart-modal-item">
-                  <div className="cart-modal-item-info">
-                    <span className="item-name">{item.name}</span>
-                    <span className="item-qty">{item.quantity}x {formatMoney(item.price)}</span>
+              {cart.length === 0 ? (
+                <p className="empty-cart-msg">Seu carrinho está vazio.</p>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.id} className="cart-modal-item">
+                    <div className="cart-modal-item-info">
+                      <div>
+                        <span className="item-name">{item.name}</span>
+                        <div className="product-qty-controls" style={{marginTop:6}}>
+                          <button type="button" className="qty-btn" onClick={() => updateQuantity(item.id, -1)}>-</button>
+                          <span className="quantity">{item.quantity}</span>
+                          <button type="button" className="qty-btn" onClick={() => updateQuantity(item.id, +1)}>+</button>
+                          <button type="button" className="btn-cancel-modal" style={{marginLeft:12,padding:'6px 10px',height:'32px'}} onClick={() => setCart(prev => prev.filter(i => Number(i.id) !== Number(item.id)))}>Remover</button>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="item-subtotal">
+                      {formatMoney(item.price * item.quantity)}
+                    </span>
                   </div>
-                  <span className="item-subtotal">
-                    {formatMoney(item.price * item.quantity)}
-                  </span>
-                </div>
-              ))}
+                ))
+              )}
 
               <div className="cart-modal-summary">
                 <span>Total a Pagar:</span>
@@ -857,14 +1109,14 @@ export default function StudentMenu() {
                   handleCheckout();
                 }}
               >
-                Confirmar e Pagar ✅
+                Confirmar e Pagar ✓
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL DE RECARGA / PIX */}
+      {/* MODAL RECARGA VIA PIX */}
       {showRechargeModal && (
         <div className="modal-overlay" onClick={() => setShowRechargeModal(false)}>
           <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
@@ -880,7 +1132,7 @@ export default function StudentMenu() {
             </div>
 
             <p className="pix-instructions">
-              Após realizar a transferência, o saldo será creditado automaticamente na conta assim que a transação for confirmada.
+              Após realizar a transferência, o saldo será creditado assim que a transação for confirmada.
             </p>
 
             <button
@@ -899,7 +1151,7 @@ export default function StudentMenu() {
         <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
           <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="modal-close-icon" onClick={() => setShowPinModal(false)}>✕</button>
-            <h3 className="modal-title">👨‍👩‍👧 Acesso do Responsável</h3>
+            <h3 className="modal-title">Acesso do Responsável</h3>
             <p className="modal-subtitle">
               Digite a senha/PIN do responsável para gerenciar os alimentos permitidos.
             </p>
@@ -917,7 +1169,7 @@ export default function StudentMenu() {
                 autoFocus
               />
               <p className="pin-hint">
-                💡 Senha padrão: <strong>1234</strong>
+                🔒 Senha padrão: <strong>1234</strong>
               </p>
 
               <button type="submit" className="btn-checkout btn-full">
@@ -928,45 +1180,178 @@ export default function StudentMenu() {
         </div>
       )}
 
-      {/* MODAL DA ÁREA DO RESPONSÁVEL */}
+      {/* MODAL DO PAINEL DE CONTROLE DOS PAIS */}
       {showParentModal && (
         <div className="modal-overlay" onClick={() => setShowParentModal(false)}>
           <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close-icon" onClick={() => setShowParentModal(false)}>✕</button>
-            
-            <h3 className="modal-title">🛡️ Controle Alimentar do Aluno</h3>
+            <button
+              type="button"
+              className="modal-close-icon"
+              onClick={() => setShowParentModal(false)}
+            >
+              ✕
+            </button>
+
+            <h3 className="modal-title">🛍️ Painel de Restrições dos Pais</h3>
             <p className="modal-subtitle">
-              Ative ou desative os alimentos para o aluno:
+              Selecione os alimentos para alternar entre <strong>Permitido</strong> e <strong>Bloqueado</strong> na conta do aluno:
             </p>
 
-            <div className="parent-product-list">
-              {products.map((product) => {
-                const isBlocked = blockedProductIds.map(Number).includes(Number(product.id));
+            <div className="parent-products-list">
+              {products.length === 0 ? (
+                <p>Nenhum produto cadastrado no momento.</p>
+              ) : (
+                products.map((product) => {
+                  const isBlocked = blockedProductIds.includes(Number(product.id));
+                  return (
+                   <div key={product.id} className={`parent-product-item ${isBlocked ? 'blocked' : 'allowed'}`}>
+                      <div className="parent-product-info">
+                       <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:44,height:44,background:'#f1f5f9',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280'}}>
+                            🍽️
+                          </div>
+                          <div>
+                            <strong className="parent-product-name">{product.name}</strong>
+                            <div className="parent-product-meta">{product.category} • {product.description ? product.description.substring(0,60) : ''}</div>
+                          </div>
+                       </div>
 
-                return (
-                  <div
-                    key={product.id}
-                    className={`parent-product-item ${isBlocked ? 'blocked' : 'allowed'}`}
-                  >
-                    <div>
-                      <strong className="parent-product-name">{product.name}</strong>
-                      <p className="parent-product-category">{product.category}</p>
-                    </div>
+                       <div className="parent-product-price">{formatMoney(product.price)}</div>
+                      </div>
 
-                    <button
-                      type="button"
-                      className={`btn-toggle-block ${isBlocked ? 'is-blocked' : 'is-allowed'}`}
-                      onClick={() => handleToggleBlock(product.id)}
-                    >
-                      {isBlocked ? '🚫 Bloqueado' : '✅ Permitido'}
-                    </button>
-                  </div>
-                );
-              })}
+                      <button
+                        type="button"
+                        className={`btn-toggle-block ${isBlocked ? 'is-blocked' : 'is-allowed'}`}
+                        onClick={() => handleToggleBlock(product.id)}
+                      >
+                        {isBlocked ? '🔒 Bloqueado' : '✅ Permitido'}
+                      </button>
+                   </div>
+                  );
+                })
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="btn-checkout btn-full"
+              style={{ marginTop: '1.25rem' }}
+              onClick={() => setShowParentModal(false)}
+            >
+              Concluir Alterações
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DO EXTRATO / STATEMENT */}
+      {showStatementModal && (
+        <div className="modal-overlay" onClick={() => setShowStatementModal(false)}>
+          <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowStatementModal(false)}>✕</button>
+            <h3 className="modal-title">Extrato</h3>
+            <p className="modal-subtitle">Últimas movimentações da conta (saldo atual: <strong>{formatMoney(balance)}</strong>).</p>
+
+            <div className="statement-list">
+              {statementLoading ? (
+                <p>Carregando extrato...</p>
+              ) : statement.length === 0 ? (
+                <p>Nenhuma movimentação encontrada.</p>
+              ) : (
+                <table className="statement-table">
+                 <thead>
+                    <tr>
+                      <th style={{ width: '120px' }}>Data</th>
+                      <th style={{ width: '140px' }}>Tipo</th>
+                      <th>Descrição</th>
+                      <th style={{ width: '140px', textAlign: 'right' }}>Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statement.map((tx) => (
+                      <tr key={tx.id}>
+                        <td>{formatDateBR(tx.created_at)}</td>
+
+                        <td>
+                          {tx.type === 'DEPOSIT'
+                              ? '➕ Recarga'
+                              : tx.type === 'PURCHASE'
+                              ? '🛒 Compra'
+                              : tx.type}
+                        </td>
+
+                        <td style={{ whiteSpace: 'normal', maxWidth: 360 }}>
+                          {tx.description || 'Sem descrição'}
+                        </td>
+
+                        <td
+                          className={`amount ${
+                            Number(tx.amount) >= 0
+                              ? 'amount-positive'
+                              : 'amount-negative'
+                          }`}
+                        >
+                          {Number(tx.amount) >= 0 ? '+' : ''}
+                          {formatMoney(tx.amount)}
+                        </td>
+
+                        <td className="amount">—</td>
+                        <td className="amount">—</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+              <button type="button" className="btn-checkout" onClick={() => exportStatementCSV()}>Exportar CSV</button>
+              <button type="button" className="btn-cancel-modal" onClick={() => setShowStatementModal(false)}>Fechar</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAIS DE EXCLUSÃO DE CONTA (DUAS ETAPAS) */}
+      {showDeleteModalStep1 && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModalStep1(false)}>
+          <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowDeleteModalStep1(false)}>✕</button>
+            <h3 className="modal-title">Atenção: Excluir Conta</h3>
+            <p className="modal-subtitle">Por lei, alguns registros (logs de transações) precisam ser mantidos por até 6 meses. Ao prosseguir, os dados pessoais serão removidos sempre que permitido pela legislação; registros técnicos necessários para auditoria serão retidos e, quando possível, anonimizados.</p>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button type="button" className="btn-cancel-modal" onClick={() => setShowDeleteModalStep1(false)}>Cancelar</button>
+              <button type="button" className="btn-confirm-checkout" onClick={proceedToFinalDelete}>Excluir minha conta</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModalStep2 && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModalStep2(false)}>
+          <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close-icon" onClick={() => setShowDeleteModalStep2(false)}>✕</button>
+            <h3 className="modal-title">Confirmação Final</h3>
+            <p className="modal-subtitle">Para confirmar, digite seu e-mail cadastrado abaixo e clique em "Excluir permanentemente". Esta ação não pode ser revertida.</p>
+
+            <input
+              type="text"
+              placeholder={studentEmail || 'Seu e-mail'}
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              className="confirm-input"
+              style={{marginTop:8}}
+            />
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button type="button" className="btn-cancel-modal" onClick={() => setShowDeleteModalStep2(false)}>Voltar</button>
+              <button type="button" className="btn-danger" onClick={confirmDeleteAccount}>Excluir permanentemente</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

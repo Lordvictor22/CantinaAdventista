@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import ProtectedRoute from './Components/ProtectedRoute';
+
 import Login from './Components/pages/Login';
 import CashierPanel from './Components/pages/CashierPanel';
 import CanteenDashboard from './Components/pages/canteen';
@@ -11,10 +12,28 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rota Pública */}
-        <Route path="/login" element={<Login />} />
 
-        {/* Rotas Protegidas */}
+        {/* =========================
+            ROTA INICIAL
+        ========================== */}
+        <Route
+          path="/"
+          element={<Navigate to="/login" replace />}
+        />
+
+
+        {/* =========================
+            LOGIN
+        ========================== */}
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+
+        {/* =========================
+            ÁREA DO ALUNO
+        ========================== */}
         <Route
           path="/student"
           element={
@@ -24,8 +43,12 @@ export default function App() {
           }
         />
 
+
+        {/* =========================
+            ÁREA DOS PAIS
+        ========================== */}
         <Route
-          path="/parent-wallet"
+          path="/parent"
           element={
             <ProtectedRoute allowedRoles={['parent', 'admin']}>
               <ParentWallet />
@@ -33,15 +56,23 @@ export default function App() {
           }
         />
 
+
+        {/* =========================
+            ÁREA DO CAIXA
+        ========================== */}
         <Route
           path="/cashier"
           element={
-            <ProtectedRoute allowedRoles={['cashier', 'admin']}>
+            <ProtectedRoute allowedRoles={['cashier', 'canteen', 'admin']}>
               <CashierPanel />
             </ProtectedRoute>
           }
         />
 
+
+        {/* =========================
+            ÁREA DA CANTINA
+        ========================== */}
         <Route
           path="/canteen"
           element={
@@ -51,18 +82,28 @@ export default function App() {
           }
         />
 
-        {/* Rota Admin utilizando o painel CanteenDashboard existente */}
+
+        {/* =========================
+            ÁREA ADMINISTRATIVA
+        ========================== */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={['admin', 'canteen']}>
+            <ProtectedRoute allowedRoles={['admin']}>
               <CanteenDashboard />
             </ProtectedRoute>
           }
         />
 
-        {/* Redirecionamento padrão */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* =========================
+            ROTAS DESCONHECIDAS
+        ========================== */}
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
+
       </Routes>
     </BrowserRouter>
   );

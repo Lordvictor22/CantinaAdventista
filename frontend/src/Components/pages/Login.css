@@ -1,28 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 
 /* =========================================
-   CORES
+   CORES - GOSTOSO SABOR
    ========================================= */
 
 :root {
-  --adventista-blue: #293b61;
-  --adventista-dark: #172845;
-  --adventista-yellow: #f4b900;
+  --brand-red: #E94055;
+  --brand-red-dark: #C92F43;
 
-  --background: #f4f6f9;
-  --white: #ffffff;
+  --brand-gold: #F6B348;
+  --brand-gold-dark: #D9922E;
 
-  --text: #172238;
-  --muted: #718096;
+  --brand-cream: #E8D4B9;
+  --brand-cream-light: #F8F1E8;
 
-  --border: #dce2e9;
+  --brand-dark: #2F2F31;
+  --brand-dark-soft: #454548;
 
-  --error-bg: #fff4f3;
-  --error: #c62828;
+  --background: #F7F3EE;
+  --white: #FFFFFF;
 
-  --success-bg: #f0faf4;
-  --success: #16804b;
+  --text: #2F2F31;
+  --muted: #7A7470;
+
+  --border: #E5DDD4;
+
+  --error-bg: #FFF1F2;
+  --error: #C92F43;
+
+  --success-bg: #F0FAF4;
+  --success: #16804B;
 }
 
 
@@ -41,10 +49,21 @@
   padding: 30px 20px;
 
   background:
+    radial-gradient(
+      circle at top left,
+      rgba(246, 179, 72, 0.18),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(233, 64, 85, 0.12),
+      transparent 35%
+    ),
     linear-gradient(
       135deg,
-      #eef2f6 0%,
-      #f8f9fb 100%
+      #F8F1E8 0%,
+      #F7F3EE 50%,
+      #F2E9DE 100%
     );
 
   font-family: 'Inter', sans-serif;
@@ -63,13 +82,12 @@
 
   background: var(--white);
 
-  border-radius: 18px;
+  border-radius: 22px;
 
-  border: 1px solid rgba(41, 59, 97, 0.08);
+  border: 1px solid rgba(232, 212, 185, 0.9);
 
   box-shadow:
-    0 20px 50px rgba(25, 42, 68, 0.10);
-
+    0 20px 60px rgba(47, 47, 49, 0.12);
 }
 
 
@@ -85,8 +103,11 @@
   margin-bottom: 32px;
 }
 
+
+/* LOGO PRINCIPAL */
+
 .adventista-logo {
-  width: 185px;
+  width: 220px;
   height: auto;
 
   display: block;
@@ -94,30 +115,42 @@
   object-fit: contain;
 }
 
+
+/* LINHA DECORATIVA */
+
 .brand-divider {
-  width: 34px;
-  height: 2px;
+  width: 55px;
+  height: 3px;
 
-  margin: 14px 0 10px;
+  margin: 16px 0 12px;
 
-  background: var(--adventista-yellow);
+  background: linear-gradient(
+    90deg,
+    var(--brand-red),
+    var(--brand-gold)
+  );
 
   border-radius: 20px;
 }
 
-.cantina-brand {
-  font-family: 'Montserrat', sans-serif;
 
-  font-size: 23px;
+/* TEXTO DA MARCA */
+
+.cantina-brand {
+  font-family: 'Cinzel', serif;
+
+  font-size: 18px;
   font-weight: 700;
 
-  color: var(--adventista-blue);
+  color: var(--brand-dark);
 
-  letter-spacing: -0.7px;
+  letter-spacing: 1px;
+
+  text-align: center;
 }
 
 .cantina-brand strong {
-  color: var(--adventista-yellow);
+  color: var(--brand-red);
 }
 
 
@@ -131,31 +164,34 @@
   margin-bottom: 25px;
 }
 
+
 .login-label {
   display: block;
 
-  margin-bottom: 8px;
+  margin-bottom: 9px;
 
-  color: var(--adventista-blue);
+  color: var(--brand-red);
 
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 800;
 
-  letter-spacing: 1.8px;
+  letter-spacing: 2px;
 }
+
 
 .login-header h1 {
-  margin: 0 0 7px;
+  margin: 0 0 8px;
 
-  color: var(--text);
+  color: var(--brand-dark);
 
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Cinzel', serif;
 
-  font-size: 27px;
-  font-weight: 700;
+  font-size: 25px;
+  font-weight: 800;
 
-  letter-spacing: -0.7px;
+  letter-spacing: 0.2px;
 }
+
 
 .login-header p {
   margin: 0;
@@ -163,6 +199,8 @@
   color: var(--muted);
 
   font-size: 13px;
+
+  line-height: 1.5;
 }
 
 
@@ -177,44 +215,49 @@
 
   margin-bottom: 22px;
 
-  background: #f1f4f7;
+  background: var(--brand-cream-light);
 
-  border-radius: 9px;
+  border: 1px solid rgba(232, 212, 185, 0.8);
+
+  border-radius: 10px;
 }
+
 
 .auth-tabs button {
   flex: 1;
 
-  height: 38px;
+  height: 40px;
 
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
 
   background: transparent;
 
-  color: #778396;
+  color: var(--muted);
 
   font-family: 'Inter', sans-serif;
 
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 
   cursor: pointer;
 
   transition: 0.2s ease;
 }
 
+
 .auth-tabs button:hover {
-  color: var(--adventista-blue);
+  color: var(--brand-red);
 }
 
-.auth-tabs button.active {
-  background: #ffffff;
 
-  color: var(--adventista-blue);
+.auth-tabs button.active {
+  background: var(--white);
+
+  color: var(--brand-red);
 
   box-shadow:
-    0 2px 6px rgba(30, 45, 70, 0.08);
+    0 3px 10px rgba(47, 47, 49, 0.08);
 }
 
 
@@ -223,31 +266,33 @@
    ========================================= */
 
 .alert {
-  padding: 10px 12px;
+  padding: 11px 12px;
 
   margin-bottom: 17px;
 
-  border-radius: 8px;
+  border-radius: 9px;
 
   font-size: 12px;
 
   text-align: center;
 }
 
+
 .alert.error {
   color: var(--error);
 
   background: var(--error-bg);
 
-  border: 1px solid #ffd8d5;
+  border: 1px solid #FFD5DA;
 }
+
 
 .alert.success {
   color: var(--success);
 
   background: var(--success-bg);
 
-  border: 1px solid #ccebd9;
+  border: 1px solid #CCEBD9;
 }
 
 
@@ -262,6 +307,7 @@
   gap: 16px;
 }
 
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -269,8 +315,9 @@
   gap: 7px;
 }
 
+
 .form-group label {
-  color: #36445a;
+  color: var(--brand-dark);
 
   font-size: 11px;
   font-weight: 700;
@@ -278,21 +325,22 @@
   letter-spacing: 0.2px;
 }
 
+
 .form-group input,
 .form-group select {
   width: 100%;
 
-  height: 45px;
+  height: 47px;
 
-  padding: 0 13px;
+  padding: 0 14px;
 
   border: 1px solid var(--border);
 
-  border-radius: 8px;
+  border-radius: 9px;
 
   outline: none;
 
-  background: #ffffff;
+  background: #FFFFFF;
 
   color: var(--text);
 
@@ -303,21 +351,24 @@
   transition: 0.2s ease;
 }
 
+
 .form-group input::placeholder {
-  color: #a2acb8;
+  color: #AAA19A;
 }
+
 
 .form-group input:hover,
 .form-group select:hover {
-  border-color: #c5ced8;
+  border-color: var(--brand-gold);
 }
+
 
 .form-group input:focus,
 .form-group select:focus {
-  border-color: var(--adventista-blue);
+  border-color: var(--brand-red);
 
   box-shadow:
-    0 0 0 3px rgba(41, 59, 97, 0.08);
+    0 0 0 3px rgba(233, 64, 85, 0.10);
 }
 
 
@@ -328,42 +379,51 @@
 .submit-button {
   width: 100%;
 
-  height: 46px;
+  height: 48px;
 
   margin-top: 5px;
 
   border: none;
-  border-radius: 8px;
+  border-radius: 9px;
 
-  background: var(--adventista-blue);
+  background: linear-gradient(
+    135deg,
+    var(--brand-red),
+    var(--brand-red-dark)
+  );
 
-  color: #ffffff;
+  color: #FFFFFF;
 
-  font-family: 'Inter', sans-serif;
+  font-family: 'Cinzel', serif;
 
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
+
+  letter-spacing: 0.5px;
 
   cursor: pointer;
 
   transition:
-    background 0.2s ease,
     transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
+
 
 .submit-button:hover {
-  background: var(--adventista-dark);
+  transform: translateY(-2px);
 
-  transform: translateY(-1px);
+  filter: brightness(1.04);
 
   box-shadow:
-    0 7px 16px rgba(41, 59, 97, 0.18);
+    0 9px 20px rgba(233, 64, 85, 0.25);
 }
+
 
 .submit-button:active {
   transform: translateY(0);
 }
+
 
 .submit-button:disabled {
   opacity: 0.65;
@@ -390,17 +450,19 @@
   margin-top: 28px;
 }
 
+
 .login-footer span {
-  width: 18px;
+  width: 22px;
   height: 1px;
 
-  background: #dfe4ea;
+  background: var(--brand-cream);
 }
+
 
 .login-footer p {
   margin: 0;
 
-  color: #9aa4b1;
+  color: #A39A93;
 
   font-size: 9px;
   font-weight: 500;
@@ -420,15 +482,15 @@
   .login-card {
     padding: 34px 24px 24px;
 
-    border-radius: 15px;
+    border-radius: 18px;
   }
 
   .adventista-logo {
-    width: 160px;
+    width: 190px;
   }
 
   .login-header h1 {
-    font-size: 24px;
+    font-size: 22px;
   }
 }
 
@@ -440,6 +502,10 @@
   }
 
   .adventista-logo {
-    width: 145px;
+    width: 170px;
+  }
+
+  .login-header h1 {
+    font-size: 20px;
   }
 }

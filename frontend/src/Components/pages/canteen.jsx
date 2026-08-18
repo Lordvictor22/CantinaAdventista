@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import logoAdventista from '../../assets/logoAdventistaCentenario.png';
+import logoGostosoSabor from '../../assets/GostososaborlogoreduzidoGIMP.png';
 import styles from './kitchenPanel.module.css';
 
 const CATEGORIES = ['Todos', 'Salgados', 'Lanches', 'Bebidas', 'Doces', 'Opções Saudáveis'];
@@ -26,9 +26,27 @@ export default function CanteenDashboard() {
   
   // Orders State
   const [orders, setOrders] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Use local date (avoid timezone shifts from toISOString)
+  const getTodayLocalDate = () => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const initialSelected = getTodayLocalDate();
+  const [selectedDate, setSelectedDate] = useState(initialSelected);
+  const [selectedDay, setSelectedDay] = useState(() => initialSelected.split('-')[2]);
+  const [selectedMonth, setSelectedMonth] = useState(() => initialSelected.split('-')[1]);
+  const [selectedYear, setSelectedYear] = useState(() => initialSelected.split('-')[0]);
+  const monthsBR = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNamesBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+
+  const daysInMonth = (year, month) => new Date(Number(year), Number(month), 0).getDate();
+  const composeISO = (y,m,d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
   // Products State
   const [products, setProducts] = useState([]);
@@ -60,7 +78,12 @@ export default function CanteenDashboard() {
     // Atualiza a cada 15 segundos para pegar novos pedidos e expirações do robô
     const interval = setInterval(loadOrders, 15000);
     return () => clearInterval(interval);
-  }, [activeSection, loadOrders]);
+  }, [activeSection, loadOrders, selectedDay, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const iso = composeISO(selectedYear, selectedMonth, selectedDay);
+    setSelectedDate(iso);
+  }, [selectedDay, selectedMonth, selectedYear]);
 
   // Load Products
   const loadProducts = useCallback(async () => {
@@ -154,6 +177,13 @@ export default function CanteenDashboard() {
     setEditingProduct(null);
   };
 
+  // Logout / Sair do painel da cantina
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   const handleSaveProduct = async (event) => {
     event.preventDefault();
     if (!productForm.name.trim()) return alert('Digite o nome do produto.');
@@ -222,7 +252,7 @@ export default function CanteenDashboard() {
     <div className={styles.kitchenWrapper}>
       <header className={styles.kitchenHeader}>
         <div className={styles.kitchenBrand}>
-          <img src={logoAdventista} alt="Colégio Adventista" />
+          <img src={logoGostosoSabor} alt="Gostoso Sabor" />
           <div className={styles.kitchenTitles}>
             <h1>Gestão da Cantina</h1>
             <p>Caixa / Preparo / Produtos</p>
@@ -246,13 +276,24 @@ export default function CanteenDashboard() {
 
           {/* Botão de navegação direta para o Painel de Administração */}
           {(user.role === 'admin' || user.role === 'canteen') && (
-            <button
-              className={styles.canteenNavBtn}
-              onClick={() => navigate('/admin')}
-              style={{ backgroundColor: '#1e293b', color: '#fff', marginLeft: '10px' }}
-            >
-              ⚙️ Admin
-            </button>
+            <>
+              <button
+                className={styles.canteenNavBtn}
+                onClick={() => navigate('/cashier')}
+                style={{ backgroundColor: '#1e293b', color: '#fff', marginLeft: '10px' }}
+              >
+                💵 Caixa
+              </button>
+
+              <button
+                className={styles.canteenNavBtn}
+                onClick={handleLogout}
+                style={{ backgroundColor: '#ef4444', color: '#fff', marginLeft: '10px' }}
+                title="Sair do painel"
+              >
+                🔒 Sair
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -267,12 +308,25 @@ export default function CanteenDashboard() {
             </div>
             <div className={styles.kitchenFilterDate}>
               <label htmlFor="dateFilter">Data:</label>
-              <input
-                id="dateFilter"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
+              <div className="compact-date-selects">
+                <select value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)}>
+                  {Array.from({ length: daysInMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={String(d).padStart(2,'0')}>{String(d).padStart(2,'0')}</option>
+                  ))}
+                </select>
+
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                  {monthsBR.map((m, idx) => (
+                    <option key={m} value={m}>{monthNamesBR[idx]} ({m})</option>
+                  ))}
+                </select>
+
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                  {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                    <option key={y} value={String(y)}>{String(y)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -302,8 +356,8 @@ export default function CanteenDashboard() {
                     <ul className={styles.orderItemsList}>
                       {order.items?.map((item, idx) => (
                         <li key={item.id || `${item.name}-${idx}`} className={styles.orderItemRow}>
-                          <span className={styles.itemQty}>{item.quantity}x</span>
-                          <span>{item.name}</span>
+                          <span className={styles.itemQty}>{Number(item.quantity) || 1}x</span>
+                          <span>{item.product_name || item.name || item.product_name || `Item #${item.product_id || idx}`}</span>
                         </li>
                       ))}
                     </ul>
@@ -413,10 +467,17 @@ export default function CanteenDashboard() {
                   </div>
 
                   <div className={styles.adminProductActions}>
-                    <button className={styles.btnEditProduct} onClick={() => openEditProduct(product)}>✏️ Editar</button>
-                    <button className={styles.btnToggleProduct} onClick={() => toggleProductAvailability(product)}>
-                      {product.available ? '🔴 Desativar' : '🟢 Ativar'}
+                    <button
+                      className={styles.btnToggleProduct}
+                      onClick={() => toggleProductAvailability(product)}
+                      title={product.available ? 'Desativar produto' : 'Ativar produto'}
+                    >
+                      {product.available ? '🚫 Desativar' : '✅ Ativar'}
                     </button>
+
+                    <button className={styles.btnEditProduct} onClick={() => openEditProduct(product)}>✏️ Editar</button>
+
+                    {/* Excluir mantém comportamento de segurança: confirmação antes de remover */}
                     <button className={styles.btnDeleteProduct} onClick={() => handleDeleteProduct(product)}>🗑️ Excluir</button>
                   </div>
                 </div>

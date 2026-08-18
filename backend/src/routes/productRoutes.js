@@ -22,9 +22,9 @@ router.put(
   productController.updateProduct
 );
 
-// 🟢 ROTA NOVA: Alternar / Desativar status do produto
+// Remova o '/status' para bater com o que o Frontend está chamando
 router.patch(
-  '/:id/status',
+  '/:id',
   verifyToken,
   verifyRole('canteen', 'admin', 'cashier'),
   productController.toggleProductStatus
