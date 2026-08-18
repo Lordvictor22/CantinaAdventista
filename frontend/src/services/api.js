@@ -1,9 +1,10 @@
 ﻿import axios from 'axios';
 
-// URL da API
 const API_URL =
   import.meta.env.VITE_API_URL ||
   'http://127.0.0.1:3000/api';
+
+console.log('🌐 API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -13,7 +14,6 @@ const api = axios.create({
   }
 });
 
-// Interceptor de requisição: injeta o JWT
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -22,10 +22,6 @@ api.interceptors.request.use(
       config.headers.Authorization = 'Bearer ' + token;
     }
 
-    config.headers['Cache-Control'] = 'no-cache';
-    config.headers['Pragma'] = 'no-cache';
-
-    // Se for envio de arquivo, deixa o navegador definir o Content-Type
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     } else if (!config.headers['Content-Type']) {
@@ -37,7 +33,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor de resposta
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -55,18 +50,12 @@ api.interceptors.response.use(
   }
 );
 
-// ========================================
-// FUNÇÕES DA API
-// ========================================
-
-// Autenticação
 export const loginUser = (credentials) =>
   api.post('/auth/login', credentials);
 
 export const registerUser = (userData) =>
   api.post('/auth/register', userData);
 
-// Pedidos
 export const createOrder = (orderData) =>
   api.post('/orders', orderData);
 
@@ -79,7 +68,6 @@ export const getAllOrders = () =>
 export const updateOrderStatus = (id, status) =>
   api.put(`/orders/${id}/status`, { status });
 
-// Carteira
 export const getWalletInfo = (userId) =>
   api.get(`/wallet/info/${userId}`);
 
@@ -89,4 +77,4 @@ export const addBalance = (data) =>
 export const getParentStudents = () =>
   api.get('/wallet/parent/students');
 
-export default api;
+export default api; 
