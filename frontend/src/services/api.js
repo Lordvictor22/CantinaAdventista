@@ -1,10 +1,10 @@
 ﻿import axios from 'axios';
 
 const API_URL =
-  import.meta.env.VITE_API_URL ||
-  'http://127.0.0.1:3000/api';
+  import.meta.env.MODE === 'production'
+    ? 'https://cantinabackend-dvf3.onrender.com/api'
+    : 'http://127.0.0.1:3000/api';
 
-console.log('🌐 API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
