@@ -1,4 +1,5 @@
 const express = require('express');
+
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -19,6 +20,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const parentRoutes = require('./routes/parentRoutes');
 
 const app = express();
+console.log('🔥 SERVER.JS NOVO - CORS LIBERADO - VERSAO 21/08/2026');
 
 app.set('trust proxy', 1);
 
