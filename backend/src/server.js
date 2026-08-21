@@ -23,62 +23,12 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ================================
-// 1. CONFIGURAÇÃO DO CORS
+// CORS
 // ================================
 
-// URLs permitidas
-const defaultOrigins = [
-  'https://cantina-adventista.vercel.app',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-];
-
-// Caso exista FRONTEND_URL no Render,
-// adiciona automaticamente ao CORS
-const envOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL
-      .split(',')
-      .map((url) => url.trim().replace(/\/$/, ''))
-      .filter(Boolean)
-  : [];
-
-// Remove URLs duplicadas
-const allowedOrigins = [
-  ...new Set([...defaultOrigins, ...envOrigins])
-];
-
-console.log('🌐 Origens permitidas pelo CORS:', allowedOrigins);
-
 const corsOptions = {
-  origin: (origin, callback) => {
-    console.log('🌐 Origem recebida:', origin);
-
-    // Permite requisições sem Origin
-    // Ex.: Postman, servidor interno, health checks
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    // Remove barra final caso exista
-    const normalizedOrigin = origin.replace(/\/$/, '');
-
-    // Verifica se a origem está autorizada
-    if (allowedOrigins.includes(normalizedOrigin)) {
-      console.log('✅ CORS permitido:', normalizedOrigin);
-      return callback(null, true);
-    }
-
-    console.log('❌ CORS bloqueado:', normalizedOrigin);
-
-    return callback(
-      new Error(`Bloqueado pelo CORS: ${normalizedOrigin}`)
-    );
-  },
-
+  origin: true,
   credentials: true,
-
   methods: [
     'GET',
     'POST',
@@ -87,23 +37,17 @@ const corsOptions = {
     'DELETE',
     'OPTIONS'
   ],
-
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'Cache-Control',
     'Pragma'
   ],
-
   optionsSuccessStatus: 204
 };
 
-// CORS deve vir antes das rotas
 app.use(cors(corsOptions));
-
-// Responde às requisições OPTIONS (preflight)
 app.options('*', cors(corsOptions));
-
 
 // ================================
 // 2. HELMET
