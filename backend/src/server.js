@@ -6,7 +6,10 @@ require('dotenv').config();
 
 const db = require('./config/db');
 
-// Importação das Rotas
+// ================================
+// IMPORTAÇÃO DAS ROTAS
+// ================================
+
 const walletRoutes = require('./routes/walletRoutes');
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -17,75 +20,196 @@ const parentRoutes = require('./routes/parentRoutes');
 
 const app = express();
 
-// 1. Proteção de Headers HTTP com Helmet
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+app.set('trust proxy', 1);
 
-// 2. Configuração do CORS
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',') 
-  : [
-      'http://localhost:5173', 
-      'http://127.0.0.1:5173', 
-      'http://localhost:3000', 
-      'http://127.0.0.1:3000'
-    ];
+// ================================
+// 1. CONFIGURAÇÃO DO CORS
+// ================================
+
+// URLs permitidas
+const defaultOrigins = [
+  'https://cantina-adventista.vercel.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+// Caso exista FRONTEND_URL no Render,
+// adiciona automaticamente ao CORS
+const envOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL
+      .split(',')
+      .map((url) => url.trim().replace(/\/$/, ''))
+      .filter(Boolean)
+  : [];
+
+// Remove URLs duplicadas
+const allowedOrigins = [
+  ...new Set([...defaultOrigins, ...envOrigins])
+];
+
+console.log('🌐 Origens permitidas pelo CORS:', allowedOrigins);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('Bloqueado pelo CORS'));
+    console.log('🌐 Origem recebida:', origin);
+
+    // Permite requisições sem Origin
+    // Ex.: Postman, servidor interno, health checks
+    if (!origin) {
+      return callback(null, true);
     }
+
+    // Remove barra final caso exista
+    const normalizedOrigin = origin.replace(/\/$/, '');
+
+    // Verifica se a origem está autorizada
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      console.log('✅ CORS permitido:', normalizedOrigin);
+      return callback(null, true);
+    }
+
+    console.log('❌ CORS bloqueado:', normalizedOrigin);
+
+    return callback(
+      new Error(`Bloqueado pelo CORS: ${normalizedOrigin}`)
+    );
   },
+
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma']
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS'
+  ],
+
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Cache-Control',
+    'Pragma'
+  ],
+
+  optionsSuccessStatus: 204
 };
 
+// CORS deve vir antes das rotas
 app.use(cors(corsOptions));
 
-// 3. Rate Limiting Global
+// Responde às requisições OPTIONS (preflight)
+app.options('*', cors(corsOptions));
+
+
+// ================================
+// 2. HELMET
+// ================================
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false
+  })
+);
+
+
+// ================================
+// 3. RATE LIMITING GLOBAL
+// ================================
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Muitas requisições enviadas. Tente novamente mais tarde.' }
+
+  // OPTIONS não deve ser limitado
+  skip: (req) => req.method === 'OPTIONS',
+
+  message: {
+    error: 'Muitas requisições enviadas. Tente novamente mais tarde.'
+  }
 });
+
 app.use(globalLimiter);
 
-// 4. Parser do Body (captura rawBody para verificação de assinatura em webhooks)
-app.use(express.json({ verify: (req, res, buf) => { try { req.rawBody = buf.toString(); } catch (e) { req.rawBody = undefined; } } }));
 
-// Exposição da pasta estática de uploads
+// ================================
+// 4. PARSER DO BODY
+// ================================
+
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      try {
+        req.rawBody = buf.toString();
+      } catch (error) {
+        req.rawBody = undefined;
+      }
+    }
+  })
+);
+
+
+// ================================
+// UPLOADS ESTÁTICOS
+// ================================
+
 app.use('/uploads', express.static('uploads'));
 
-// 5. Logger de Requisições
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Auth:${req.headers.authorization ? 'Sim' : 'Não'}`);
-    next();
-  });
-}
 
-// 6. Rate Limiting para Autenticação
+// ================================
+// 5. LOGGER DE REQUISIÇÕES
+// ================================
+
+app.use((req, res, next) => {
+  console.log(
+    `[${new Date().toISOString()}] ` +
+    `${req.method} ${req.originalUrl} - ` +
+    `Origin: ${req.headers.origin || 'Sem Origin'} - ` +
+    `Auth: ${req.headers.authorization ? 'Sim' : 'Não'}`
+  );
+
+  next();
+});
+
+
+// ================================
+// 6. RATE LIMIT PARA LOGIN
+// ================================
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+
+  skip: (req) => req.method === 'OPTIONS',
+
+  message: {
+    error: 'Muitas tentativas de login. Tente novamente em 15 minutos.'
+  }
 });
+
 app.use('/api/auth/login', authLimiter);
 
-// Rota de Teste de Conexão Rápida
+
+// ================================
+// ROTA DE TESTE
+// ================================
+
 app.get('/api/ping', (req, res) => {
-  res.json({ message: 'Backend conectado com sucesso!' });
+  res.json({
+    message: 'Backend conectado com sucesso!'
+  });
 });
 
 
-// 7. Registro de Rotas da API
+// ================================
+// 7. ROTAS DA API
+// ================================
+
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
@@ -94,34 +218,59 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/parent', parentRoutes);
 
-// Health Check
+
+// ================================
+// HEALTH CHECK
+// ================================
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date() });
+  res.json({
+    status: 'OK',
+    timestamp: new Date()
+  });
 });
 
-// Robô de Expiração Automática de Pedidos
+
+// ================================
+// EXPIRAÇÃO AUTOMÁTICA DE PEDIDOS
+// ================================
+
 setInterval(async () => {
   try {
     const queryText = `
       UPDATE orders
       SET status = 'expirado'
-      WHERE status = 'pendente' 
-        AND expires_at IS NOT NULL 
+      WHERE status = 'pendente'
+        AND expires_at IS NOT NULL
         AND expires_at < NOW();
     `;
-    
+
     const result = await db.query(queryText);
+
     if (result.rowCount > 0) {
-      console.log(`[ESTOQUE] ${result.rowCount} pedido(s) expirado(s) atualizados.`);
+      console.log(
+        `[ESTOQUE] ${result.rowCount} pedido(s) expirado(s) atualizados.`
+      );
     }
+
   } catch (error) {
-    console.error('Erro na rotina de expiração automática:', error.message);
+    console.error(
+      'Erro na rotina de expiração automática:',
+      error.message
+    );
   }
+
 }, 2 * 60 * 1000);
 
-// Logs e retenção: cria tabela de logs (se não existir) e rotina de limpeza (retenção 6 meses)
+
+// ================================
+// LOGS E WEBHOOKS
+// ================================
+
 (async () => {
   try {
+
+    // Tabela de logs
     await db.query(`
       CREATE TABLE IF NOT EXISTS logs (
         id BIGSERIAL PRIMARY KEY,
@@ -132,23 +281,40 @@ setInterval(async () => {
       );
     `);
 
-    // Limpeza inicial: remover logs mais antigos que 6 meses (segurança e conformidade)
-    const purgeQuery = `DELETE FROM logs WHERE created_at < NOW() - INTERVAL '6 months'`;
+    // Remove logs com mais de 6 meses
+    const purgeQuery = `
+      DELETE FROM logs
+      WHERE created_at < NOW() - INTERVAL '6 months'
+    `;
+
     await db.query(purgeQuery);
 
-    // Agendar limpeza diária
+    // Limpeza diária
     setInterval(async () => {
       try {
         const result = await db.query(purgeQuery);
-        if (result.rowCount > 0) console.log(`[LOGS] ${result.rowCount} log(s) removido(s) por retenção de 6 meses.`);
+
+        if (result.rowCount > 0) {
+          console.log(
+            `[LOGS] ${result.rowCount} log(s) removido(s) por retenção de 6 meses.`
+          );
+        }
+
       } catch (err) {
-        console.error('Erro ao limpar logs antigos:', err.message || err);
+        console.error(
+          'Erro ao limpar logs antigos:',
+          err.message || err
+        );
       }
+
     }, 24 * 60 * 60 * 1000);
 
-    console.log('[LOGS] Tabela logs verificada e rotina de retenção agendada (6 meses).');
+    console.log(
+      '[LOGS] Tabela logs verificada e rotina de retenção agendada.'
+    );
 
-    // Criar tabela de webhook_events (auditoria de webhooks e idempotência)
+
+    // Tabela de eventos de webhook
     await db.query(`
       CREATE TABLE IF NOT EXISTS webhook_events (
         id BIGSERIAL PRIMARY KEY,
@@ -161,41 +327,87 @@ setInterval(async () => {
       );
     `);
 
-    // Limpeza inicial e agendada para webhook_events (remoção após 6 meses também)
-    const purgeWebhook = `DELETE FROM webhook_events WHERE created_at < NOW() - INTERVAL '6 months'`;
+    const purgeWebhook = `
+      DELETE FROM webhook_events
+      WHERE created_at < NOW() - INTERVAL '6 months'
+    `;
+
     await db.query(purgeWebhook);
 
+    // Limpeza diária dos webhooks
     setInterval(async () => {
       try {
-        const r = await db.query(purgeWebhook);
-        if (r.rowCount > 0) console.log(`[WEBHOOKS] ${r.rowCount} webhook_events removidos por retenção.`);
+        const result = await db.query(purgeWebhook);
+
+        if (result.rowCount > 0) {
+          console.log(
+            `[WEBHOOKS] ${result.rowCount} webhook_events removidos por retenção.`
+          );
+        }
+
       } catch (err) {
-        console.error('Erro ao limpar webhook_events antigos:', err.message || err);
+        console.error(
+          'Erro ao limpar webhook_events antigos:',
+          err.message || err
+        );
       }
+
     }, 24 * 60 * 60 * 1000);
 
-    console.log('[WEBHOOKS] Tabela webhook_events verificada e rotina de retenção agendada (6 meses).');
+    console.log(
+      '[WEBHOOKS] Tabela webhook_events verificada e rotina de retenção agendada.'
+    );
+
   } catch (err) {
-    console.error('Erro ao preparar tabela de logs:', err.message || err);
+    console.error(
+      'Erro ao preparar tabelas de logs/webhooks:',
+      err.message || err
+    );
   }
+
 })();
 
-// 8. Tratamento de Rotas Inexistentes (404)
+
+// ================================
+// 8. ROTA NÃO ENCONTRADA
+// ================================
+
 app.use((req, res) => {
-  res.status(404).json({ error: 'Rota não encontrada.' });
+  res.status(404).json({
+    error: 'Rota não encontrada.'
+  });
 });
 
-// 9. Middleware Global de Erros (500)
+
+// ================================
+// 9. TRATAMENTO GLOBAL DE ERROS
+// ================================
+
 app.use((err, req, res, next) => {
-  console.error('❌ Erro não tratado:', err);
-  if (err.message === 'Bloqueado pelo CORS') {
-    return res.status(403).json({ error: 'Origem não permitida pelo CORS.' });
+  console.error('❌ Erro não tratado:', err.message || err);
+
+  if (
+    err.message &&
+    err.message.includes('Bloqueado pelo CORS')
+  ) {
+    return res.status(403).json({
+      error: 'Origem não permitida pelo CORS.'
+    });
   }
-  res.status(500).json({ error: 'Erro interno do servidor.' });
+
+  return res.status(500).json({
+    error: 'Erro interno do servidor.'
+  });
 });
 
-// Força a escuta em '0.0.0.0' para aceitar conexões IPv4 locais
+
+// ================================
+// INICIAR SERVIDOR
+// ================================
+
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor Cantina+ rodando em http://127.0.0.1:${PORT}`);
+  console.log(`🚀 Servidor Cantina+ rodando na porta ${PORT}`);
+  console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });

@@ -795,18 +795,6 @@ export default function StudentMenu() {
                   </button>
                 </div>
               </div>
-
-              {/* CONTROLE PARENTAL */}
-              <div 
-                className="parent-quick-card"
-                onClick={() => setShowPinModal(true)}
-              >
-                <span className="parent-card-icon">🛍️</span>
-                <div>
-                  <strong className="parent-card-title">Controle dos Pais</strong>
-                  <span className="parent-card-subtitle">Bloquear alimentos</span>
-                </div>
-              </div>
             </div>
           </section>
 

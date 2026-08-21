@@ -5,7 +5,6 @@ const API_URL =
     ? 'https://cantinabackend-dvf3.onrender.com/api'
     : 'http://127.0.0.1:3000/api';
 
-
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -50,23 +49,35 @@ api.interceptors.response.use(
   }
 );
 
+// =========================
+// AUTENTICAÇÃO
+// =========================
+
 export const loginUser = (credentials) =>
   api.post('/auth/login', credentials);
 
 export const registerUser = (userData) =>
   api.post('/auth/register', userData);
 
+// =========================
+// PEDIDOS
+// =========================
+
 export const createOrder = (orderData) =>
   api.post('/orders', orderData);
 
 export const getUserOrders = () =>
-  api.get('/orders/user');
+  api.get('/orders/my-orders');
 
 export const getAllOrders = () =>
   api.get('/orders');
 
 export const updateOrderStatus = (id, status) =>
   api.put(`/orders/${id}/status`, { status });
+
+// =========================
+// CARTEIRA
+// =========================
 
 export const getWalletInfo = (userId) =>
   api.get(`/wallet/info/${userId}`);
@@ -77,4 +88,20 @@ export const addBalance = (data) =>
 export const getParentStudents = () =>
   api.get('/wallet/parent/students');
 
-export default api; 
+// =========================
+// RESPONSÁVEL / ALUNO
+// =========================
+
+export const getBlockedProducts = (studentId) =>
+  api.get(`/parent/blocked/${studentId}`);
+
+export const toggleBlockProduct = (data) =>
+  api.post('/parent/toggle-block', data);
+
+export const setStudentLimit = (data) =>
+  api.post('/parent/student-limit', data);
+
+export const updateStudentLimit = (data) =>
+  api.put('/parent/student-limit', data);
+
+export default api;

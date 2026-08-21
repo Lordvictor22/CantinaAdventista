@@ -170,7 +170,7 @@ export default function ParentWallet() {
       {/* BARRA SUPERIOR (TOPBAR) */}
       <div className="wallet-topbar">
         <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#333' }}>
-          🏫 LancheCard - Painel do Responsável
+          🏫 GOSTOSO SABOR - Painel do Responsável
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>

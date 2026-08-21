@@ -1,42 +1,66 @@
 const db = require('../config/db');
 
-
 // =========================================
 // AUXILIAR: VERIFICA SE O PAI TEM ACESSO AO ALUNO
 // =========================================
 const verifyParentAccess = async (parentId, studentId) => {
-  const check = await db.query(
+  if (!parentId || !studentId) {
+    return false;
+  }
+
+  const result = await db.query(
     `SELECT 1
      FROM parent_students
-     WHERE parent_id = $1 AND student_id = $2`,
+     WHERE parent_id = $1
+       AND student_id = $2`,
     [parentId, studentId]
   );
 
-  return check.rows.length > 0;
+  return result.rows.length > 0;
 };
 
+// =========================================
+// AUXILIAR: VALIDAR ID NUMÉRICO
+// =========================================
+const parsePositiveId = (value) => {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  return id;
+};
 
 // =========================================
 // 1. VINCULAR PAI E FILHO
 // =========================================
 const linkStudent = async (req, res) => {
   try {
-    const parentId = req.user.id;
+    const parentId = parsePositiveId(req.user?.id);
     const { student_email } = req.body;
 
-    if (!student_email || !student_email.trim()) {
+    if (!parentId) {
+      return res.status(401).json({
+        error: 'Usuário não autenticado.'
+      });
+    }
+
+    if (!student_email || !String(student_email).trim()) {
       return res.status(400).json({
         error: 'E-mail do aluno é obrigatório.'
       });
     }
 
-    // Busca apenas usuários que realmente são alunos
+    const email = String(student_email).trim().toLowerCase();
+
+    // Busca somente usuários com perfil de estudante
     const studentQuery = await db.query(
       `SELECT id, name, email
        FROM users
        WHERE email = $1
-       AND role = 'student'`,
-      [student_email.toLowerCase().trim()]
+         AND role = 'student'`,
+      [email]
     );
 
     if (studentQuery.rows.length === 0) {
@@ -47,7 +71,7 @@ const linkStudent = async (req, res) => {
 
     const student = studentQuery.rows[0];
 
-    // Evita qualquer situação estranha de vincular a própria conta
+    // Impede vincular a própria conta
     if (String(parentId) === String(student.id)) {
       return res.status(400).json({
         error: 'Não é possível vincular a própria conta.'
@@ -57,7 +81,8 @@ const linkStudent = async (req, res) => {
     const linkResult = await db.query(
       `INSERT INTO parent_students (parent_id, student_id)
        VALUES ($1, $2)
-       ON CONFLICT (parent_id, student_id) DO NOTHING
+       ON CONFLICT (parent_id, student_id)
+       DO NOTHING
        RETURNING parent_id, student_id`,
       [parentId, student.id]
     );
@@ -82,20 +107,27 @@ const linkStudent = async (req, res) => {
   }
 };
 
-
 // =========================================
 // 2. ADICIONAR SALDO
 // =========================================
 const addBalance = async (req, res) => {
-  const { student_id, amount, description } = req.body;
-  const requesterId = req.user.id;
-  const requesterRole = req.user.role;
+  const studentId = parsePositiveId(req.body.student_id);
+  const requesterId = parsePositiveId(req.user?.id);
+  const requesterRole = req.user?.role;
 
-  const numericAmount = Number(amount);
+  const numericAmount = Number(req.body.amount);
+  const description =
+    req.body.description?.trim() || 'Recarga de saldo';
 
-  if (!student_id) {
+  if (!requesterId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
+
+  if (!studentId) {
     return res.status(400).json({
-      error: 'Aluno é obrigatório.'
+      error: 'ID do aluno é obrigatório.'
     });
   }
 
@@ -105,18 +137,29 @@ const addBalance = async (req, res) => {
     });
   }
 
+  // Evita valores absurdamente grandes
+  if (numericAmount > 1000000) {
+    return res.status(400).json({
+      error: 'Valor da recarga excede o limite permitido.'
+    });
+  }
+
   const client = await db.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Se for pai, obrigatoriamente precisa estar vinculado ao aluno
+    // =========================================
+    // VERIFICAR PERMISSÃO
+    // =========================================
+
     if (requesterRole === 'parent') {
       const accessCheck = await client.query(
         `SELECT 1
          FROM parent_students
-         WHERE parent_id = $1 AND student_id = $2`,
-        [requesterId, student_id]
+         WHERE parent_id = $1
+           AND student_id = $2`,
+        [requesterId, studentId]
       );
 
       if (accessCheck.rows.length === 0) {
@@ -126,6 +169,7 @@ const addBalance = async (req, res) => {
           error: 'Você não tem permissão para adicionar saldo para este aluno.'
         });
       }
+
     } else if (
       requesterRole !== 'admin' &&
       requesterRole !== 'cashier'
@@ -137,14 +181,17 @@ const addBalance = async (req, res) => {
       });
     }
 
-    // Confirma que o destino é realmente um aluno
+    // =========================================
+    // ATUALIZAR SALDO
+    // FOR UPDATE IMPLÍCITO PELO UPDATE
+    // =========================================
     const updateResult = await client.query(
       `UPDATE users
        SET balance = COALESCE(balance, 0) + $1
        WHERE id = $2
-       AND role = 'student'
-       RETURNING id, balance, name`,
-      [numericAmount, student_id]
+         AND role = 'student'
+       RETURNING id, name, balance`,
+      [numericAmount, studentId]
     );
 
     if (updateResult.rows.length === 0) {
@@ -155,15 +202,18 @@ const addBalance = async (req, res) => {
       });
     }
 
+    // =========================================
+    // REGISTRAR TRANSAÇÃO
+    // =========================================
     await client.query(
       `INSERT INTO transactions
        (user_id, amount, type, description)
        VALUES ($1, $2, $3, $4)`,
       [
-        student_id,
+        studentId,
         numericAmount,
         'DEPOSIT',
-        description || 'Recarga de saldo'
+        description
       ]
     );
 
@@ -189,43 +239,58 @@ const addBalance = async (req, res) => {
   }
 };
 
-
 // =========================================
-// 3. CONSULTAR SALDO E EXTRATO
+// 3. CONSULTAR SALDO E HISTÓRICO RECENTE
 // =========================================
 const getWalletInfo = async (req, res) => {
   try {
-    const { studentId } = req.params;
-    const requesterId = req.user.id;
-    const requesterRole = req.user.role;
+    const studentId = parsePositiveId(req.params.studentId);
+    const requesterId = parsePositiveId(req.user?.id);
+    const requesterRole = req.user?.role;
 
-    // Aluno só pode consultar a própria carteira
+    if (!requesterId) {
+      return res.status(401).json({
+        error: 'Usuário não autenticado.'
+      });
+    }
+
+    if (!studentId) {
+      return res.status(400).json({
+        error: 'ID do aluno inválido.'
+      });
+    }
+
+    // =========================================
+    // ALUNO → SOMENTE A PRÓPRIA CARTEIRA
+    // =========================================
     if (requesterRole === 'student') {
-      if (String(requesterId) !== String(studentId)) {
+      if (requesterId !== studentId) {
         return res.status(403).json({
           error: 'Você não tem permissão para acessar esta carteira.'
         });
       }
     }
 
-    // Pai só pode consultar aluno vinculado
-    if (requesterRole === 'parent') {
-      const isParent = await verifyParentAccess(
+    // =========================================
+    // PAI → SOMENTE FILHOS VINCULADOS
+    // =========================================
+    else if (requesterRole === 'parent') {
+      const hasAccess = await verifyParentAccess(
         requesterId,
         studentId
       );
 
-      if (!isParent) {
+      if (!hasAccess) {
         return res.status(403).json({
           error: 'Acesso negado às informações financeiras.'
         });
       }
     }
 
-    // Outros perfis autorizados
-    if (
-      requesterRole !== 'student' &&
-      requesterRole !== 'parent' &&
+    // =========================================
+    // ADMIN / CASHIER → PERMITIDOS
+    // =========================================
+    else if (
       requesterRole !== 'admin' &&
       requesterRole !== 'cashier'
     ) {
@@ -235,10 +300,10 @@ const getWalletInfo = async (req, res) => {
     }
 
     const userQuery = await db.query(
-      `SELECT id, name, balance
+      `SELECT id, name, email, balance
        FROM users
        WHERE id = $1
-       AND role = 'student'`,
+         AND role = 'student'`,
       [studentId]
     );
 
@@ -280,12 +345,17 @@ const getWalletInfo = async (req, res) => {
   }
 };
 
-
 // =========================================
 // 4. BUSCAR FILHOS DO PAI LOGADO
 // =========================================
 const getParentStudents = async (req, res) => {
-  const parentId = req.user.id;
+  const parentId = parsePositiveId(req.user?.id);
+
+  if (!parentId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
 
   try {
     const result = await db.query(
@@ -294,16 +364,23 @@ const getParentStudents = async (req, res) => {
          u.name,
          u.email,
          COALESCE(u.balance, 0) AS balance,
-         u.daily_limit
+         u.daily_limit,
+         u.avatar
        FROM parent_students ps
-       JOIN users u ON ps.student_id = u.id
+       JOIN users u
+         ON ps.student_id = u.id
        WHERE ps.parent_id = $1
-       AND u.role = 'student'
+         AND u.role = 'student'
        ORDER BY u.name ASC`,
       [parentId]
     );
 
-    return res.json(result.rows);
+    return res.json(
+      result.rows.map(student => ({
+        ...student,
+        balance: Number(student.balance || 0)
+      }))
+    );
 
   } catch (error) {
     console.error('Erro ao buscar filhos:', error);
@@ -314,16 +391,31 @@ const getParentStudents = async (req, res) => {
   }
 };
 
-
 // =========================================
-// 5. RESUMO DO FILHO
+// 5. RESUMO DO ALUNO
 // =========================================
 const getStudentSummary = async (req, res) => {
-  const { studentId } = req.params;
-  const requesterId = req.user.id;
-  const requesterRole = req.user.role;
+  const studentId = parsePositiveId(req.params.studentId);
+  const requesterId = parsePositiveId(req.user?.id);
+  const requesterRole = req.user?.role;
+
+  if (!requesterId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
+
+  if (!studentId) {
+    return res.status(400).json({
+      error: 'ID do aluno inválido.'
+    });
+  }
 
   try {
+    // =========================================
+    // PAI → PRECISA TER VÍNCULO
+    // ADMIN → PODE ACESSAR
+    // =========================================
     if (requesterRole === 'parent') {
       const hasAccess = await verifyParentAccess(
         requesterId,
@@ -335,6 +427,7 @@ const getStudentSummary = async (req, res) => {
           error: 'Acesso negado a este aluno.'
         });
       }
+
     } else if (requesterRole !== 'admin') {
       return res.status(403).json({
         error: 'Você não tem permissão para acessar este aluno.'
@@ -342,10 +435,16 @@ const getStudentSummary = async (req, res) => {
     }
 
     const studentRes = await db.query(
-      `SELECT id, name, email, balance, daily_limit
+      `SELECT
+         id,
+         name,
+         email,
+         balance,
+         daily_limit,
+         avatar
        FROM users
        WHERE id = $1
-       AND role = 'student'`,
+         AND role = 'student'`,
       [studentId]
     );
 
@@ -355,9 +454,11 @@ const getStudentSummary = async (req, res) => {
       });
     }
 
+    // IMPORTANTE:
+    // Usa a mesma tabela utilizada pelo orderController.
     const blockedRes = await db.query(
       `SELECT product_id
-       FROM blocked_products
+       FROM student_blocked_products
        WHERE student_id = $1`,
       [studentId]
     );
@@ -381,9 +482,16 @@ const getStudentSummary = async (req, res) => {
       [studentId]
     );
 
+    const student = studentRes.rows[0];
+
     return res.json({
-      student: studentRes.rows[0],
+      student: {
+        ...student,
+        balance: Number(student.balance || 0)
+      },
+
       blockedProductIds,
+
       recentOrders: ordersRes.rows
     });
 
@@ -396,61 +504,54 @@ const getStudentSummary = async (req, res) => {
   }
 };
 
-
 // =========================================
 // 6. DEFINIR LIMITE DIÁRIO
 // =========================================
 const setDailyLimit = async (req, res) => {
-  console.log('==========================================');
-  console.log('🔥 SET DAILY LIMIT FOI CHAMADO');
-  console.log('studentId:', req.params.studentId);
-  console.log('body inteiro:', req.body);
-  console.log('requesterId:', req.user?.id);
-  console.log('requesterRole:', req.user?.role);
-  console.log('==========================================');
+  const studentId = parsePositiveId(req.params.studentId);
+  const requesterId = parsePositiveId(req.user?.id);
+  const requesterRole = req.user?.role;
+
+  if (!requesterId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
+
+  if (!studentId) {
+    return res.status(400).json({
+      error: 'ID do aluno inválido.'
+    });
+  }
+
+  // Aceita:
+  // { dailyLimit: 50 }
+  // ou
+  // { daily_limit: 50 }
+  const dailyLimitRaw =
+    req.body.dailyLimit ?? req.body.daily_limit;
+
+  // null ou "" remove o limite
+  const dailyLimit =
+    dailyLimitRaw === null ||
+    dailyLimitRaw === ''
+      ? null
+      : Number(dailyLimitRaw);
+
+  if (
+    dailyLimit !== null &&
+    (!Number.isFinite(dailyLimit) || dailyLimit < 0)
+  ) {
+    return res.status(400).json({
+      error: 'O limite diário deve ser um número maior ou igual a zero.'
+    });
+  }
 
   try {
-    const studentId = Number(req.params.studentId);
-
-    const requesterId = req.user.id;
-    const requesterRole = req.user.role;
-
-    // Aceita dailyLimit ou daily_limit
-    const dailyLimitRaw =
-      req.body.dailyLimit ?? req.body.daily_limit;
-
-    // Permite remover o limite enviando null ou ""
-    const dailyLimit =
-      dailyLimitRaw === null || dailyLimitRaw === ''
-        ? null
-        : Number(dailyLimitRaw);
-
-    // -----------------------------------------
-    // VALIDAR ID
-    // -----------------------------------------
-    if (!Number.isInteger(studentId) || studentId <= 0) {
-      return res.status(400).json({
-        error: 'ID do aluno inválido.'
-      });
-    }
-
-    // -----------------------------------------
-    // VALIDAR LIMITE
-    // -----------------------------------------
-    if (
-      dailyLimit !== null &&
-      (!Number.isFinite(dailyLimit) || dailyLimit < 0)
-    ) {
-      return res.status(400).json({
-        error: 'O limite diário deve ser um número maior ou igual a zero.'
-      });
-    }
-
-    // -----------------------------------------
-    // VERIFICAR PERMISSÃO DO PAI
-    // -----------------------------------------
+    // =========================================
+    // PAI → SOMENTE FILHOS VINCULADOS
+    // =========================================
     if (requesterRole === 'parent') {
-
       const hasAccess = await verifyParentAccess(
         requesterId,
         studentId
@@ -463,21 +564,16 @@ const setDailyLimit = async (req, res) => {
       }
 
     } else if (requesterRole !== 'admin') {
-
       return res.status(403).json({
         error: 'Você não tem permissão para alterar limites.'
       });
-
     }
 
-    // -----------------------------------------
-    // ATUALIZAR LIMITE
-    // -----------------------------------------
     const result = await db.query(
       `UPDATE users
        SET daily_limit = $1
        WHERE id = $2
-       AND role = 'student'
+         AND role = 'student'
        RETURNING id, name, daily_limit`,
       [dailyLimit, studentId]
     );
@@ -488,18 +584,12 @@ const setDailyLimit = async (req, res) => {
       });
     }
 
-    console.log(
-      '✅ LIMITE ATUALIZADO:',
-      result.rows[0]
-    );
-
     return res.json({
       message: 'Limite diário atualizado com sucesso!',
       student: result.rows[0]
     });
 
   } catch (error) {
-
     console.error('Erro ao definir limite:', error);
 
     return res.status(500).json({
@@ -512,38 +602,102 @@ const setDailyLimit = async (req, res) => {
 // 7. EXCLUIR CONTA DO PAI
 // =========================================
 const deleteParentAccount = async (req, res) => {
-  const parentId = req.user.id;
+  const parentId = parsePositiveId(req.user?.id);
+
+  if (!parentId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
+
+  const client = await db.connect();
 
   try {
-    // 1. Remove os vínculos na tabela de associação usando "db"
-    await db.query('DELETE FROM parent_students WHERE parent_id = $1', [parentId]);
+    await client.query('BEGIN');
 
-    // 2. Apaga a conta do pai da tabela de usuários
-    const result = await db.query(
-      'DELETE FROM users WHERE id = $1 AND role = $2 RETURNING id',
-      [parentId, 'parent']
+    // Confirma que a conta realmente é de um pai
+    const parentCheck = await client.query(
+      `SELECT id
+       FROM users
+       WHERE id = $1
+         AND role = 'parent'
+       FOR UPDATE`,
+      [parentId]
+    );
+
+    if (parentCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+
+      return res.status(404).json({
+        error: 'Usuário não encontrado ou não é um responsável.'
+      });
+    }
+
+    // Remove os vínculos
+    await client.query(
+      `DELETE FROM parent_students
+       WHERE parent_id = $1`,
+      [parentId]
+    );
+
+    // Remove a conta
+    const result = await client.query(
+      `DELETE FROM users
+       WHERE id = $1
+         AND role = 'parent'
+       RETURNING id`,
+      [parentId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado ou não possui permissão.' });
+      await client.query('ROLLBACK');
+
+      return res.status(404).json({
+        error: 'Usuário não encontrado.'
+      });
     }
 
-    return res.status(200).json({ message: 'Conta excluída com sucesso.' });
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      message: 'Conta excluída com sucesso.'
+    });
+
   } catch (error) {
+    await client.query('ROLLBACK');
+
     console.error('Erro ao excluir conta do pai:', error);
-    return res.status(500).json({ error: 'Erro interno ao tentar excluir a conta.' });
+
+    return res.status(500).json({
+      error: 'Erro interno ao tentar excluir a conta.'
+    });
+
+  } finally {
+    client.release();
   }
 };
-
 
 // =========================================
 // 8. BLOQUEAR / DESBLOQUEAR PRODUTO
 // =========================================
 const toggleProductBlock = async (req, res) => {
-  const { studentId } = req.params;
-  const { productId } = req.body;
-  const requesterId = req.user.id;
-  const requesterRole = req.user.role;
+  const studentId = parsePositiveId(req.params.studentId);
+  const productId = parsePositiveId(req.body.productId);
+
+  const requesterId = parsePositiveId(req.user?.id);
+  const requesterRole = req.user?.role;
+
+  if (!requesterId) {
+    return res.status(401).json({
+      error: 'Usuário não autenticado.'
+    });
+  }
+
+  if (!studentId) {
+    return res.status(400).json({
+      error: 'ID do aluno inválido.'
+    });
+  }
 
   if (!productId) {
     return res.status(400).json({
@@ -552,6 +706,9 @@ const toggleProductBlock = async (req, res) => {
   }
 
   try {
+    // =========================================
+    // PAI → PRECISA TER VÍNCULO
+    // =========================================
     if (requesterRole === 'parent') {
       const hasAccess = await verifyParentAccess(
         requesterId,
@@ -563,25 +720,65 @@ const toggleProductBlock = async (req, res) => {
           error: 'Permissão negada para alterar bloqueios deste aluno.'
         });
       }
+
     } else if (requesterRole !== 'admin') {
       return res.status(403).json({
         error: 'Você não tem permissão para alterar bloqueios.'
       });
     }
 
+    // =========================================
+    // CONFIRMAR QUE O ALUNO EXISTE
+    // =========================================
+    const studentCheck = await db.query(
+      `SELECT 1
+       FROM users
+       WHERE id = $1
+         AND role = 'student'`,
+      [studentId]
+    );
+
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Aluno não encontrado.'
+      });
+    }
+
+    // =========================================
+    // CONFIRMAR QUE O PRODUTO EXISTE
+    // =========================================
+    const productCheck = await db.query(
+      `SELECT id, name
+       FROM products
+       WHERE id = $1`,
+      [productId]
+    );
+
+    if (productCheck.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Produto não encontrado.'
+      });
+    }
+
+    // =========================================
+    // VERIFICAR SE JÁ ESTÁ BLOQUEADO
+    // =========================================
     const checkRes = await db.query(
       `SELECT 1
-       FROM blocked_products
+       FROM student_blocked_products
        WHERE student_id = $1
-       AND product_id = $2`,
+         AND product_id = $2`,
       [studentId, productId]
     );
 
+    // =========================================
+    // DESBLOQUEAR
+    // =========================================
     if (checkRes.rows.length > 0) {
       await db.query(
-        `DELETE FROM blocked_products
+        `DELETE FROM student_blocked_products
          WHERE student_id = $1
-         AND product_id = $2`,
+           AND product_id = $2`,
         [studentId, productId]
       );
 
@@ -591,8 +788,11 @@ const toggleProductBlock = async (req, res) => {
       });
     }
 
+    // =========================================
+    // BLOQUEAR
+    // =========================================
     await db.query(
-      `INSERT INTO blocked_products
+      `INSERT INTO student_blocked_products
        (student_id, product_id)
        VALUES ($1, $2)
        ON CONFLICT DO NOTHING`,
@@ -613,23 +813,42 @@ const toggleProductBlock = async (req, res) => {
   }
 };
 
-
 // =========================================
 // 9. EXTRATO COMPLETO
 // =========================================
 const getStatement = async (req, res) => {
   try {
-    const { studentId } = req.params;
-    const requesterId = req.user.id;
-    const requesterRole = req.user.role;
+    const studentId = parsePositiveId(req.params.studentId);
+    const requesterId = parsePositiveId(req.user?.id);
+    const requesterRole = req.user?.role;
 
+    if (!requesterId) {
+      return res.status(401).json({
+        error: 'Usuário não autenticado.'
+      });
+    }
+
+    if (!studentId) {
+      return res.status(400).json({
+        error: 'ID do aluno inválido.'
+      });
+    }
+
+    // =========================================
+    // ALUNO → SOMENTE PRÓPRIO EXTRATO
+    // =========================================
     if (requesterRole === 'student') {
-      if (String(requesterId) !== String(studentId)) {
+      if (requesterId !== studentId) {
         return res.status(403).json({
           error: 'Acesso negado às informações financeiras.'
         });
       }
-    } else if (requesterRole === 'parent') {
+    }
+
+    // =========================================
+    // PAI → SOMENTE FILHO VINCULADO
+    // =========================================
+    else if (requesterRole === 'parent') {
       const hasAccess = await verifyParentAccess(
         requesterId,
         studentId
@@ -640,7 +859,12 @@ const getStatement = async (req, res) => {
           error: 'Acesso negado às informações financeiras.'
         });
       }
-    } else if (
+    }
+
+    // =========================================
+    // ADMIN / CASHIER
+    // =========================================
+    else if (
       requesterRole !== 'admin' &&
       requesterRole !== 'cashier'
     ) {
@@ -649,11 +873,14 @@ const getStatement = async (req, res) => {
       });
     }
 
+    // =========================================
+    // BUSCAR ALUNO
+    // =========================================
     const userQuery = await db.query(
-      `SELECT id, name, balance
+      `SELECT id, name, email, balance
        FROM users
        WHERE id = $1
-       AND role = 'student'`,
+         AND role = 'student'`,
       [studentId]
     );
 
@@ -663,23 +890,52 @@ const getStatement = async (req, res) => {
       });
     }
 
-    let limit = Number(req.query.limit) || 100;
-    let offset = Number(req.query.offset) || 0;
+    // =========================================
+    // PAGINAÇÃO
+    // =========================================
+    let limit = Number(req.query.limit);
+    let offset = Number(req.query.offset);
 
-    limit = Math.max(1, Math.min(1000, limit));
-    offset = Math.max(0, offset);
+    if (!Number.isFinite(limit)) {
+      limit = 100;
+    }
 
+    if (!Number.isFinite(offset)) {
+      offset = 0;
+    }
+
+    limit = Math.max(
+      1,
+      Math.min(1000, Math.floor(limit))
+    );
+
+    offset = Math.max(
+      0,
+      Math.floor(offset)
+    );
+
+    // =========================================
+    // BUSCAR TRANSAÇÕES
+    // =========================================
     const txRes = await db.query(
-      `SELECT id, amount, type, description, created_at
+      `SELECT
+         id,
+         amount,
+         type,
+         description,
+         created_at
        FROM transactions
        WHERE user_id = $1
        ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
+       LIMIT $2
+       OFFSET $3`,
       [studentId, limit, offset]
     );
 
     return res.json({
-      current_balance: Number(userQuery.rows[0].balance || 0),
+      current_balance: Number(
+        userQuery.rows[0].balance || 0
+      ),
       transactions: txRes.rows
     });
 
@@ -692,7 +948,9 @@ const getStatement = async (req, res) => {
   }
 };
 
-
+// =========================================
+// EXPORTS
+// =========================================
 module.exports = {
   linkStudent,
   addBalance,

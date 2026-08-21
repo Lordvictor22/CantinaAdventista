@@ -13,8 +13,12 @@ const getProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   const { name, description, price, stock, category, available, image_url } = req.body;
 
-  if (!name || price === undefined) {
-    return res.status(400).json({ error: 'Nome e preço são obrigatórios.' });
+  const numericPrice = Number(price);
+
+  if (!name || !Number.isFinite(numericPrice) || numericPrice < 0) {
+    return res.status(400).json({
+      error: 'Nome e preço válido são obrigatórios.'
+    });
   }
 
   try {
@@ -26,7 +30,7 @@ const createProduct = async (req, res) => {
         name,
         description || '',
         price,
-        stock || 0,
+        stock !== undefined && stock !== null ? stock : 0,
         category || 'Salgados',
         available !== undefined ? available : true,
         image_url || ''
